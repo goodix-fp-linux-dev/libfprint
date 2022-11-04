@@ -353,7 +353,15 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
         {
           FpPrint *template = g_ptr_array_index (templates, i);
 
-          if (fpi_print_bz3_match (template, print, priv->bz3_threshold, &error) == FPI_MATCH_SUCCESS)
+          int match_result = FPI_MATCH_ERROR;
+          if (priv->algorithm == FPI_PRINT_NBIS)
+            match_result = fpi_print_bz3_match (template, print,
+                                                priv->bz3_threshold, &error);
+          else if (priv->algorithm == FPI_PRINT_SIGFM)
+            match_result = fpi_print_sfm_match (template, print,
+                                                priv->bz3_threshold, &error);
+
+          if (match_result == FPI_MATCH_SUCCESS)
             {
               result = template;
               break;

@@ -276,7 +276,8 @@ fpi_print_sfm_match (FpPrint * template, FpPrint * print,
     {
       *error = fpi_device_error_new_msg (
         FP_DEVICE_ERROR_NOT_SUPPORTED,
-        "Cannot call sfm match with non-sfm print data");
+        "Cannot call sfm match with non-sfm print data, type was %d",
+        template->type);
       return FPI_MATCH_ERROR;
     }
   SfmImgInfo * against = g_ptr_array_index (print->prints, 0);
