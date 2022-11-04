@@ -19,6 +19,7 @@
  */
 
 #include "fpi-print.h"
+#include "sigfm/sigfm.hpp"
 #define FP_COMPONENT "print"
 #include "fpi-log.h"
 
@@ -161,7 +162,7 @@ fpi_print_add_from_image (FpPrint *print,
   struct fp_minutiae _minutiae;
   struct xyt_struct *xyt;
 
-  if (print->type != FPI_PRINT_NBIS || print->type != FPI_PRINT_SIGFM ||
+  if ((print->type != FPI_PRINT_NBIS && print->type != FPI_PRINT_SIGFM) ||
       !image)
     {
       g_set_error (error,
@@ -224,7 +225,7 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
   gint i;
 
   /* XXX: Use a different error type? */
-  if (template->type != FPI_PRINT_NBIS || print->type != FPI_PRINT_NBIS)
+  if (template->type != FPI_PRINT_NBIS)
     {
       *error = fpi_device_error_new_msg (FP_DEVICE_ERROR_NOT_SUPPORTED,
                                          "It is only possible to match NBIS type print data");
@@ -253,6 +254,29 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
         return FPI_MATCH_SUCCESS;
     }
 
+  return FPI_MATCH_FAIL;
+}
+
+FpiMatchResult
+fpi_print_sfm_match (FpPrint * template, FpPrint * print,
+                     gint bz3_threshold, GError ** error)
+{
+  if (template->type != FPI_PRINT_SIGFM)
+    {
+      *error = fpi_device_error_new_msg (
+        FP_DEVICE_ERROR_NOT_SUPPORTED,
+        "Cannot call sfm match with non-sfm print data");
+      return FPI_MATCH_ERROR;
+    }
+  SfmImgInfo * against = g_ptr_array_index (print->prints, 0);
+  for (int i = 0; i != template->prints->len; ++i)
+    {
+      SfmImgInfo * pinfo = g_ptr_array_index (template->prints, i);
+      int score = sfm_match_score (pinfo, against);
+      fp_dbg ("sfm score %d/%d", score, bz3_threshold);
+      if (score >= bz3_threshold)
+        return FPI_MATCH_SUCCESS;
+    }
   return FPI_MATCH_FAIL;
 }
 

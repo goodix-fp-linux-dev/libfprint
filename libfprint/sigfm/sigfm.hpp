@@ -1,7 +1,6 @@
 
 #pragma once
 
-#include "fpi-minutiae.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -17,6 +16,8 @@ SfmImgInfo* sfm_extract(SfmPix* pix, int width, int height);
 
 void sfm_end_enroll(SfmEnrollData* data);
 void sfm_free_info(SfmImgInfo* info);
+int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled);
+
 #ifdef __cplusplus
 }
 #endif
