@@ -20,6 +20,7 @@ int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled);
 unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen);
 SfmImgInfo* sfm_deserialize_binary(unsigned char* bytes, int len);
 int sfm_keypoints_count(SfmImgInfo* info);
+SfmImgInfo* sfm_copy_info(SfmImgInfo* info);
 
 #ifdef __cplusplus
 }

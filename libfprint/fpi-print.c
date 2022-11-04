@@ -58,7 +58,11 @@ fpi_print_add_print (FpPrint *print, FpPrint *add)
   g_assert (add->prints->len == 1);
   int el_size = print->type == FPI_PRINT_NBIS ? sizeof (struct xyt_struct) :
                 sizeof (SfmImgInfo *);
-  g_ptr_array_add (print->prints, g_memdup2 (add->prints->pdata[0], el_size));
+  void * to_add =
+    print->type == FPI_PRINT_NBIS ?
+    g_memdup2 (add->prints->pdata[0], sizeof (struct xyt_struct)) :
+    sfm_copy_info (add->prints->pdata[0]);
+  g_ptr_array_add (print->prints, to_add);
 }
 
 /**

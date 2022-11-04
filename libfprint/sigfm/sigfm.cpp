@@ -92,13 +92,17 @@ SfmEnrollData* sfm_begin_enroll(const char* username, int finger)
     return enroll_data;
 }
 
+SfmImgInfo* sfm_copy_info(SfmImgInfo* info) { return new SfmImgInfo{*info}; }
+
 int sfm_keypoints_count(SfmImgInfo* info) { return info->keypoints.size(); }
 unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen)
 {
     const auto store_path = fs::temp_directory_path() / "sfm_tmp_store";
     cv::FileStorage store{store_path.string(),
-                          cv::FileStorage::Mode::FORMAT_JSON};
-    store.write("d", info->descriptors);
+                          cv::FileStorage::Mode::FORMAT_JSON |
+                              cv::FileStorage::Mode::WRITE};
+    const auto& desc = info->descriptors;
+    store.write("d", desc);
     cv::write(store, "k", info->keypoints);
 
     store.release();
@@ -141,6 +145,7 @@ SfmImgInfo* sfm_extract(SfmPix* pix, int width, int height)
     std::vector<cv::KeyPoint> pts;
     cv::Mat descs;
     cv::SIFT::create()->detectAndCompute(img, roi, pts, descs);
+    //cv::imwrite("./finger-extract.png", img);
 
     auto* info = new SfmImgInfo{pts, descs};
     //*minutae = keypoints_to_fp_minutiae(pts);
