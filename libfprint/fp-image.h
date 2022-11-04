@@ -44,6 +44,11 @@ void          fp_image_detect_minutiae (FpImage            *self,
                                         GCancellable       *cancellable,
                                         GAsyncReadyCallback callback,
                                         gpointer            user_data);
+
+void fp_image_extract_sfm_info (FpImage           * self,
+                                GCancellable      * cancellable,
+                                GAsyncReadyCallback callback,
+                                gpointer            user_data);
 gboolean      fp_image_detect_minutiae_finish (FpImage      *self,
                                                GAsyncResult *result,
                                                GError      **error);

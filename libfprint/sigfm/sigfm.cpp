@@ -1,11 +1,15 @@
 
 #include "sigfm.hpp"
+#include "opencv2/core/persistence.hpp"
 #include "opencv2/core/types.hpp"
 #include "opencv2/features2d.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <iterator>
+#include <sstream>
 #include <string>
 
 #include <opencv2/opencv.hpp>
@@ -86,6 +90,48 @@ SfmEnrollData* sfm_begin_enroll(const char* username, int finger)
     }
     cv::KeyPoint kp;
     return enroll_data;
+}
+
+int sfm_keypoints_count(SfmImgInfo* info) { return info->keypoints.size(); }
+unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen)
+{
+    const auto store_path = fs::temp_directory_path() / "sfm_tmp_store";
+    cv::FileStorage store{store_path.string(),
+                          cv::FileStorage::Mode::FORMAT_JSON};
+    store.write("d", info->descriptors);
+    cv::write(store, "k", info->keypoints);
+
+    store.release();
+    std::ifstream inf{store_path};
+    std::stringstream ss;
+    ss << inf.rdbuf();
+    const auto outs = ss.str();
+    char* out = static_cast<char*>(calloc(outs.size() + 1, 1));
+    strncpy(out, outs.c_str(), outs.size());
+
+    inf.close();
+    fs::remove(store_path);
+    *outlen = outs.size();
+    return reinterpret_cast<unsigned char*>(out);
+}
+
+SfmImgInfo* sfm_deserialize_binary(unsigned char* bytes, int len)
+{
+    const auto store_path = fs::temp_directory_path() / "sfm_tmp_store_write";
+    std::ofstream tmpsf{store_path};
+    tmpsf.write(reinterpret_cast<char*>(bytes), len);
+    tmpsf.close();
+
+    cv::FileStorage store{store_path.string(),
+                          cv::FileStorage::Mode::FORMAT_JSON};
+
+    auto info = std::make_unique<SfmImgInfo>();
+    cv::read(store["d"], info->descriptors);
+    cv::read(store["k"], info->keypoints);
+    store.release();
+
+    fs::remove(store_path);
+    return info.release();
 }
 
 SfmImgInfo* sfm_extract(SfmPix* pix, int width, int height)
