@@ -33,15 +33,12 @@
  * This is a helper class for the commonly found image based devices.
  */
 
-G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (FpImageDevice, fp_image_device, FP_TYPE_DEVICE)
+G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (FpImageDevice, fp_image_device,
+                                     FP_TYPE_DEVICE)
 
-enum {
-  PROP_0,
-  PROP_FPI_STATE,
-  N_PROPS
-};
+enum { PROP_0, PROP_FPI_STATE, N_PROPS };
 
-static GParamSpec *properties[N_PROPS];
+static GParamSpec * properties[N_PROPS];
 
 enum {
   FPI_STATE_CHANGED,
@@ -49,7 +46,7 @@ enum {
   LAST_SIGNAL
 };
 
-static guint signals[LAST_SIGNAL] = { 0 };
+static guint signals[LAST_SIGNAL] = {0};
 
 /*******************************************************/
 
@@ -59,9 +56,9 @@ static guint signals[LAST_SIGNAL] = { 0 };
 
 /* Callbacks/vfuncs */
 static void
-fp_image_device_open (FpDevice *device)
+fp_image_device_open (FpDevice * device)
 {
-  FpImageDeviceClass *cls = FP_IMAGE_DEVICE_GET_CLASS (device);
+  FpImageDeviceClass * cls = FP_IMAGE_DEVICE_GET_CLASS (device);
 
   /* Nothing special about opening an image device, just
    * forward the request. */
@@ -69,20 +66,20 @@ fp_image_device_open (FpDevice *device)
 }
 
 static void
-fp_image_device_close (FpDevice *device)
+fp_image_device_close (FpDevice * device)
 {
-  FpImageDevice *self = FP_IMAGE_DEVICE (device);
-  FpImageDeviceClass *cls = FP_IMAGE_DEVICE_GET_CLASS (self);
-  FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
+  FpImageDevice * self = FP_IMAGE_DEVICE (device);
+  FpImageDeviceClass * cls = FP_IMAGE_DEVICE_GET_CLASS (self);
+  FpImageDevicePrivate * priv = fp_image_device_get_instance_private (self);
 
   g_assert (priv->active == FALSE);
   cls->img_close (self);
 }
 
 static void
-fp_image_device_cancel_action (FpDevice *device)
+fp_image_device_cancel_action (FpDevice * device)
 {
-  FpImageDevice *self = FP_IMAGE_DEVICE (device);
+  FpImageDevice * self = FP_IMAGE_DEVICE (device);
   FpiDeviceAction action;
 
   action = fpi_device_get_current_action (device);
@@ -97,10 +94,10 @@ fp_image_device_cancel_action (FpDevice *device)
 }
 
 static void
-fp_image_device_start_capture_action (FpDevice *device)
+fp_image_device_start_capture_action (FpDevice * device)
 {
-  FpImageDevice *self = FP_IMAGE_DEVICE (device);
-  FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
+  FpImageDevice * self = FP_IMAGE_DEVICE (device);
+  FpImageDevicePrivate * priv = fp_image_device_get_instance_private (self);
   FpiDeviceAction action;
   FpiPrintType print_type;
 
@@ -117,18 +114,17 @@ fp_image_device_start_capture_action (FpDevice *device)
 
       if (!wait_for_finger)
         {
-          fpi_device_action_error (device, fpi_device_error_new (FP_DEVICE_ERROR_NOT_SUPPORTED));
+          fpi_device_action_error (
+            device, fpi_device_error_new (FP_DEVICE_ERROR_NOT_SUPPORTED));
           return;
         }
     }
   else if (action == FPI_DEVICE_ACTION_ENROLL)
     {
-      FpPrint *enroll_print = NULL;
+      FpPrint * enroll_print = NULL;
 
       fpi_device_get_enroll_data (device, &enroll_print);
-      g_object_get (enroll_print, "fpi-type", &print_type, NULL);
-      if (print_type != FPI_PRINT_NBIS)
-        fpi_print_set_type (enroll_print, FPI_PRINT_NBIS);
+      fpi_print_set_type (enroll_print, priv->algorithm);
     }
 
   priv->enroll_stage = 0;
@@ -141,14 +137,13 @@ fp_image_device_start_capture_action (FpDevice *device)
   fpi_image_device_activate (self);
 }
 
-
 /*********************************************************/
 
 static void
-fp_image_device_finalize (GObject *object)
+fp_image_device_finalize (GObject * object)
 {
-  FpImageDevice *self = (FpImageDevice *) object;
-  FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
+  FpImageDevice * self = (FpImageDevice *) object;
+  FpImageDevicePrivate * priv = fp_image_device_get_instance_private (self);
 
   g_assert (priv->active == FALSE);
 
@@ -156,25 +151,23 @@ fp_image_device_finalize (GObject *object)
 }
 
 static void
-fp_image_device_default_activate (FpImageDevice *self)
+fp_image_device_default_activate (FpImageDevice * self)
 {
   fpi_image_device_activate_complete (self, NULL);
 }
 
 static void
-fp_image_device_default_deactivate (FpImageDevice *self)
+fp_image_device_default_deactivate (FpImageDevice * self)
 {
   fpi_image_device_deactivate_complete (self, NULL);
 }
 
 static void
-fp_image_device_get_property (GObject    *object,
-                              guint       prop_id,
-                              GValue     *value,
-                              GParamSpec *pspec)
+fp_image_device_get_property (GObject * object, guint prop_id,
+                              GValue * value, GParamSpec * pspec)
 {
-  FpImageDevice *self = FP_IMAGE_DEVICE (object);
-  FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
+  FpImageDevice * self = FP_IMAGE_DEVICE (object);
+  FpImageDevicePrivate * priv = fp_image_device_get_instance_private (self);
 
   switch (prop_id)
     {
@@ -188,11 +181,11 @@ fp_image_device_get_property (GObject    *object,
 }
 
 static void
-fp_image_device_constructed (GObject *obj)
+fp_image_device_constructed (GObject * obj)
 {
-  FpImageDevice *self = FP_IMAGE_DEVICE (obj);
-  FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
-  FpImageDeviceClass *cls = FP_IMAGE_DEVICE_GET_CLASS (self);
+  FpImageDevice * self = FP_IMAGE_DEVICE (obj);
+  FpImageDevicePrivate * priv = fp_image_device_get_instance_private (self);
+  FpImageDeviceClass * cls = FP_IMAGE_DEVICE_GET_CLASS (self);
 
   /* Set default threshold. */
   priv->bz3_threshold = BOZORTH3_DEFAULT_THRESHOLD;
@@ -206,10 +199,10 @@ fp_image_device_constructed (GObject *obj)
 }
 
 static void
-fp_image_device_class_init (FpImageDeviceClass *klass)
+fp_image_device_class_init (FpImageDeviceClass * klass)
 {
-  GObjectClass *object_class = G_OBJECT_CLASS (klass);
-  FpDeviceClass *fp_device_class = FP_DEVICE_CLASS (klass);
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+  FpDeviceClass * fp_device_class = FP_DEVICE_CLASS (klass);
 
   object_class->finalize = fp_image_device_finalize;
   object_class->get_property = fp_image_device_get_property;
@@ -241,13 +234,11 @@ fp_image_device_class_init (FpImageDeviceClass *klass)
    *
    * Stability: private
    */
-  properties[PROP_FPI_STATE] =
-    g_param_spec_enum ("fpi-image-device-state",
-                       "Image Device State",
-                       "Private: The state of the image device",
-                       FPI_TYPE_IMAGE_DEVICE_STATE,
-                       FPI_IMAGE_DEVICE_STATE_INACTIVE,
-                       G_PARAM_STATIC_STRINGS | G_PARAM_READABLE);
+  properties[PROP_FPI_STATE] = g_param_spec_enum (
+    "fpi-image-device-state", "Image Device State",
+    "Private: The state of the image device", FPI_TYPE_IMAGE_DEVICE_STATE,
+    FPI_IMAGE_DEVICE_STATE_INACTIVE,
+    G_PARAM_STATIC_STRINGS | G_PARAM_READABLE);
 
   /**
    * FpImageDevice::fpi-image-device-state-changed: (skip)
@@ -258,18 +249,15 @@ fp_image_device_class_init (FpImageDeviceClass *klass)
    *
    * Stability: private
    */
-  signals[FPI_STATE_CHANGED] =
-    g_signal_new ("fpi-image-device-state-changed",
-                  G_TYPE_FROM_CLASS (object_class),
-                  G_SIGNAL_RUN_FIRST,
-                  G_STRUCT_OFFSET (FpImageDeviceClass, change_state),
-                  NULL, NULL, NULL,
-                  G_TYPE_NONE, 1, FPI_TYPE_IMAGE_DEVICE_STATE);
+  signals[FPI_STATE_CHANGED] = g_signal_new (
+    "fpi-image-device-state-changed", G_TYPE_FROM_CLASS (object_class),
+    G_SIGNAL_RUN_FIRST, G_STRUCT_OFFSET (FpImageDeviceClass, change_state),
+    NULL, NULL, NULL, G_TYPE_NONE, 1, FPI_TYPE_IMAGE_DEVICE_STATE);
 
   g_object_class_install_properties (object_class, N_PROPS, properties);
 }
 
 static void
-fp_image_device_init (FpImageDevice *self)
+fp_image_device_init (FpImageDevice * self)
 {
 }
