@@ -48,8 +48,11 @@ FpiMatchResult fpi_print_bz3_match (FpPrint *temp,
                                     gint     bz3_threshold,
                                     GError **error);
 
+FpiMatchResult fpi_print_sfm_match (FpPrint * template, FpPrint * print,
+                                    gint bz3_threshold, GError * *error);
+
 /* Helpers to encode metadata into user ID strings. */
-gchar *  fpi_print_generate_user_id (FpPrint *print);
+gchar * fpi_print_generate_user_id (FpPrint * print);
 gboolean fpi_print_fill_from_user_id (FpPrint    *print,
                                       const char *user_id);
 
