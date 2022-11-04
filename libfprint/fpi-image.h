@@ -21,6 +21,8 @@
 #pragma once
 
 #include "fp-image.h"
+#include "sigfm/sigfm.hpp"
+#include <config.h>
 
 /**
  * FpiImageFlags:
@@ -63,11 +65,12 @@ struct _FpImage
   FpiImageFlags flags;
 
   /*< private >*/
-  guint8    *data;
-  guint8    *binarized;
+  guint8      *data;
+  guint8      *binarized;
 
-  GPtrArray *minutiae;
-  guint      ref_count;
+  GPtrArray   *minutiae;
+  SfmImgInfo * sfm_info;
+  guint        ref_count;
 };
 
 gint fpi_std_sq_dev (const guint8 *buf,

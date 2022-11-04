@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "sigfm/sigfm.hpp"
 #include <gio/gio.h>
 
 G_BEGIN_DECLS
@@ -55,5 +56,7 @@ const guchar * fp_image_get_binarized (FpImage *self,
 void           fp_minutia_get_coords (FpMinutia *min,
                                       gint      *x,
                                       gint      *y);
+
+SfmImgInfo * fp_image_get_sfm_info (FpImage * self);
 
 G_END_DECLS

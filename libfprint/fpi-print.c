@@ -18,6 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "fpi-print.h"
 #define FP_COMPONENT "print"
 #include "fpi-log.h"
 
@@ -71,7 +72,7 @@ fpi_print_set_type (FpPrint     *print,
   g_return_if_fail (print->type == FPI_PRINT_UNDEFINED);
 
   print->type = type;
-  if (print->type == FPI_PRINT_NBIS)
+  if (print->type == FPI_PRINT_NBIS || print->type == FPI_PRINT_SIGFM)
     {
       g_assert_null (print->prints);
       print->prints = g_ptr_array_new_with_free_func (g_free);
@@ -160,7 +161,8 @@ fpi_print_add_from_image (FpPrint *print,
   struct fp_minutiae _minutiae;
   struct xyt_struct *xyt;
 
-  if (print->type != FPI_PRINT_NBIS || !image)
+  if (print->type != FPI_PRINT_NBIS || print->type != FPI_PRINT_SIGFM ||
+      !image)
     {
       g_set_error (error,
                    G_IO_ERROR,
@@ -168,24 +170,29 @@ fpi_print_add_from_image (FpPrint *print,
                    "Cannot add print data from image!");
       return FALSE;
     }
-
-  minutiae = fp_image_get_minutiae (image);
-  if (!minutiae || minutiae->len == 0)
+  if (print->type == FPI_PRINT_NBIS)
     {
-      g_set_error (error,
-                   G_IO_ERROR,
-                   G_IO_ERROR_INVALID_DATA,
-                   "No minutiae found in image or not yet detected!");
-      return FALSE;
+      minutiae = fp_image_get_minutiae (image);
+      if (!minutiae || minutiae->len == 0)
+        {
+          g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                       "No minutiae found in image or not yet detected!");
+          return FALSE;
+        }
+
+      _minutiae.num = minutiae->len;
+      _minutiae.list = (struct fp_minutia **) minutiae->pdata;
+      _minutiae.alloc = minutiae->len;
+
+      xyt = g_new0 (struct xyt_struct, 1);
+      minutiae_to_xyt (&_minutiae, image->width, image->height, xyt);
+      g_ptr_array_add (print->prints, xyt);
     }
-
-  _minutiae.num = minutiae->len;
-  _minutiae.list = (struct fp_minutia **) minutiae->pdata;
-  _minutiae.alloc = minutiae->len;
-
-  xyt = g_new0 (struct xyt_struct, 1);
-  minutiae_to_xyt (&_minutiae, image->width, image->height, xyt);
-  g_ptr_array_add (print->prints, xyt);
+  else if (print->type == FPI_PRINT_SIGFM)
+    {
+      SfmImgInfo * info = fp_image_get_sfm_info (image);
+      g_ptr_array_add (print->prints, info);
+    }
 
   g_clear_object (&print->image);
   print->image = g_object_ref (image);

@@ -17,6 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "fpi-print.h"
 #define FP_COMPONENT "image_device"
 #include "fpi-log.h"
 
@@ -197,6 +198,9 @@ fp_image_device_constructed (GObject *obj)
   priv->bz3_threshold = BOZORTH3_DEFAULT_THRESHOLD;
   if (cls->bz3_threshold > 0)
     priv->bz3_threshold = cls->bz3_threshold;
+  priv->algorithm = FPI_PRINT_NBIS;
+  if (cls->algorithm > 0)
+    priv->algorithm = cls->algorithm;
 
   G_OBJECT_CLASS (fp_image_device_parent_class)->constructed (obj);
 }
