@@ -917,6 +917,8 @@ fp_print_deserialize (const guchar *data,
           g_variant_unref (child);
 
           SfmImgInfo * sfm_info = sfm_deserialize_binary (serialized, slen);
+          if (!sfm_info)
+            goto invalid_format;
 
           g_ptr_array_add (result->prints, g_steal_pointer (&sfm_info));
         }
