@@ -19,6 +19,8 @@
 //
 
 #include "sigfm.hpp"
+#include "binary.hpp"
+
 #include "opencv2/core/persistence.hpp"
 #include "opencv2/core/types.hpp"
 #include "opencv2/features2d.hpp"
@@ -35,6 +37,35 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
+struct SfmEnrollData {
+    fs::path img_path_base;
+};
+
+struct SfmImgInfo {
+    std::vector<cv::KeyPoint> keypoints;
+    cv::Mat descriptors;
+};
+namespace bin {
+
+template<>
+struct serializer<SfmImgInfo> : public std::true_type {
+    static void serialize(const SfmImgInfo& info, stream& out)
+    {
+        out << info.descriptors << info.keypoints;
+    }
+};
+
+template<>
+struct deserializer<SfmImgInfo> : public std::true_type {
+    static SfmImgInfo deserialize(stream& in)
+    {
+        SfmImgInfo info;
+        in >> info.descriptors >> info.keypoints;
+        return info;
+    }
+};
+} // namespace bin
 
 namespace {
 constexpr auto distance_match = 0.75;
@@ -88,16 +119,8 @@ struct angle {
         this->corr_matches[1] = m2;
     }
 };
+// namespace bin
 } // namespace
-
-struct SfmEnrollData {
-    fs::path img_path_base;
-};
-
-struct SfmImgInfo {
-    std::vector<cv::KeyPoint> keypoints;
-    cv::Mat descriptors;
-};
 
 SfmEnrollData* sfm_begin_enroll(const char* username, int finger)
 {
@@ -116,45 +139,23 @@ SfmImgInfo* sfm_copy_info(SfmImgInfo* info) { return new SfmImgInfo{*info}; }
 int sfm_keypoints_count(SfmImgInfo* info) { return info->keypoints.size(); }
 unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen)
 {
-    const auto store_path = fs::temp_directory_path() / "sfm_tmp_store";
-    cv::FileStorage store{store_path.string(),
-                          cv::FileStorage::Mode::FORMAT_JSON |
-                              cv::FileStorage::Mode::WRITE};
-    const auto& desc = info->descriptors;
-    store.write("d", desc);
-    cv::write(store, "k", info->keypoints);
-
-    store.release();
-    std::ifstream inf{store_path};
-    std::stringstream ss;
-    ss << inf.rdbuf();
-    const auto outs = ss.str();
-    char* out = static_cast<char*>(calloc(outs.size() + 1, 1));
-    strncpy(out, outs.c_str(), outs.size());
-
-    inf.close();
-    fs::remove(store_path);
-    *outlen = outs.size();
-    return reinterpret_cast<unsigned char*>(out);
+    bin::stream s;
+    s << *info;
+    *outlen = s.size();
+    return s.copy_buffer();
 }
 
 SfmImgInfo* sfm_deserialize_binary(unsigned char* bytes, int len)
 {
-    const auto store_path = fs::temp_directory_path() / "sfm_tmp_store_write";
-    std::ofstream tmpsf{store_path};
-    tmpsf.write(reinterpret_cast<char*>(bytes), len);
-    tmpsf.close();
-
-    cv::FileStorage store{store_path.string(),
-                          cv::FileStorage::Mode::FORMAT_JSON};
-
-    auto info = std::make_unique<SfmImgInfo>();
-    cv::read(store["d"], info->descriptors);
-    cv::read(store["k"], info->keypoints);
-    store.release();
-
-    fs::remove(store_path);
-    return info.release();
+    try {
+        bin::stream s{bytes, bytes + len};
+        auto info = std::make_unique<SfmImgInfo>();
+        s >> *info;
+        return info.release();
+    }
+    catch (const std::exception&) {
+        return nullptr;
+    }
 }
 
 SfmImgInfo* sfm_extract(SfmPix* pix, int width, int height)
@@ -162,6 +163,7 @@ SfmImgInfo* sfm_extract(SfmPix* pix, int width, int height)
     cv::Mat img{height, width, CV_8UC1, pix};
     const auto roi = cv::Mat::ones(cv::Size{img.size[1], img.size[0]}, CV_8UC1);
     std::vector<cv::KeyPoint> pts;
+
     cv::Mat descs;
     cv::SIFT::create()->detectAndCompute(img, roi, pts, descs);
     //cv::imwrite("./finger-extract.png", img);
