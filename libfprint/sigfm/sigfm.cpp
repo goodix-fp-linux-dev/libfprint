@@ -20,6 +20,7 @@
 
 #include "sigfm.hpp"
 #include "binary.hpp"
+#include "img-info.hpp"
 
 #include "opencv2/core/persistence.hpp"
 #include "opencv2/core/types.hpp"
@@ -42,17 +43,13 @@ struct SfmEnrollData {
     fs::path img_path_base;
 };
 
-struct SfmImgInfo {
-    std::vector<cv::KeyPoint> keypoints;
-    cv::Mat descriptors;
-};
 namespace bin {
 
 template<>
 struct serializer<SfmImgInfo> : public std::true_type {
     static void serialize(const SfmImgInfo& info, stream& out)
     {
-        out << info.descriptors << info.keypoints;
+        out << info.keypoints << info.descriptors;
     }
 };
 
@@ -61,7 +58,7 @@ struct deserializer<SfmImgInfo> : public std::true_type {
     static SfmImgInfo deserialize(stream& in)
     {
         SfmImgInfo info;
-        in >> info.descriptors >> info.keypoints;
+        in >> info.keypoints >> info.descriptors;
         return info;
     }
 };
@@ -158,9 +155,12 @@ SfmImgInfo* sfm_deserialize_binary(unsigned char* bytes, int len)
     }
 }
 
-SfmImgInfo* sfm_extract(SfmPix* pix, int width, int height)
+//int sfm_info_equal(SfmImgInfo* lhs, SfmImgInfo* rhs) { return std::equal(lhs->descriptors.databegin, lhs->descriptors.dataend, rhs->descriptors.datastart, rhs->descriptors.dataend) && lhs->keypoints == rhs->keypoints; }
+SfmImgInfo* sfm_extract(const SfmPix* pix, int width, int height)
 {
-    cv::Mat img{height, width, CV_8UC1, pix};
+    cv::Mat img;
+    img.create(height, width, CV_8UC1);
+    std::memcpy(img.data, pix, width * height);
     const auto roi = cv::Mat::ones(cv::Size{img.size[1], img.size[0]}, CV_8UC1);
     std::vector<cv::KeyPoint> pts;
 
@@ -175,76 +175,87 @@ SfmImgInfo* sfm_extract(SfmPix* pix, int width, int height)
 
 int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled)
 {
-    std::vector<std::vector<cv::DMatch>> points;
-    auto bfm = cv::BFMatcher::create();
-    bfm->knnMatch(frame->descriptors, enrolled->descriptors, points, 2);
-    std::set<match> matches_unique;
-    int nb_matched = 0;
-    for (const auto& pts : points) {
-        const cv::DMatch& match_1 = pts.at(0);
-        if (match_1.distance < distance_match * pts.at(1).distance) {
-            matches_unique.emplace(
-                match{frame->keypoints.at(match_1.queryIdx).pt,
-                      enrolled->keypoints.at(match_1.trainIdx).pt});
-            nb_matched++;
+    try {
+        std::vector<std::vector<cv::DMatch>> points;
+        auto bfm = cv::BFMatcher::create();
+        bfm->knnMatch(frame->descriptors, enrolled->descriptors, points, 2);
+        std::set<match> matches_unique;
+        int nb_matched = 0;
+        for (const auto& pts : points) {
+            if (pts.size() < 2) {
+                continue;
+            }
+            const cv::DMatch& match_1 = pts.at(0);
+            if (match_1.distance < distance_match * pts.at(1).distance) {
+                matches_unique.emplace(
+                    match{frame->keypoints.at(match_1.queryIdx).pt,
+                          enrolled->keypoints.at(match_1.trainIdx).pt});
+                nb_matched++;
+            }
         }
-    }
-    if (nb_matched < min_match) {
-        return 0;
-    }
-    std::vector<match> matches{matches_unique.begin(), matches_unique.end()};
+        std::cout << "nb matched: " << nb_matched << '\n';
+        if (nb_matched < min_match) {
+            return 0;
+        }
+        std::vector<match> matches{matches_unique.begin(),
+                                   matches_unique.end()};
 
-    std::vector<angle> angles;
-    for (int j = 0; j < matches.size(); j++) {
-        match match_1 = matches[j];
-        for (int k = j + 1; k < matches.size(); k++) {
-            match match_2 = matches[k];
+        std::vector<angle> angles;
+        for (int j = 0; j < matches.size(); j++) {
+            match match_1 = matches[j];
+            for (int k = j + 1; k < matches.size(); k++) {
+                match match_2 = matches[k];
 
-            int vec_1[2] = {match_1.p1.x - match_2.p1.x,
-                            match_1.p1.y - match_2.p1.y};
-            int vec_2[2] = {match_1.p2.x - match_2.p2.x,
-                            match_1.p2.y - match_2.p2.y};
+                int vec_1[2] = {match_1.p1.x - match_2.p1.x,
+                                match_1.p1.y - match_2.p1.y};
+                int vec_2[2] = {match_1.p2.x - match_2.p2.x,
+                                match_1.p2.y - match_2.p2.y};
 
-            double length_1 = sqrt(pow(vec_1[0], 2) + pow(vec_1[1], 2));
-            double length_2 = sqrt(pow(vec_2[0], 2) + pow(vec_2[1], 2));
+                double length_1 = sqrt(pow(vec_1[0], 2) + pow(vec_1[1], 2));
+                double length_2 = sqrt(pow(vec_2[0], 2) + pow(vec_2[1], 2));
 
-            if (1 - std::min(length_1, length_2) /
-                        std::max(length_1, length_2) <=
-                length_match) {
+                if (1 - std::min(length_1, length_2) /
+                            std::max(length_1, length_2) <=
+                    length_match) {
 
-                double product = length_1 * length_2;
-                angles.emplace_back(angle(
-                    M_PI / 2 +
-                        asin((vec_1[0] * vec_2[0] + vec_1[1] * vec_2[1]) /
+                    double product = length_1 * length_2;
+                    angles.emplace_back(angle(
+                        M_PI / 2 +
+                            asin((vec_1[0] * vec_2[0] + vec_1[1] * vec_2[1]) /
+                                 product),
+                        acos((vec_1[0] * vec_2[1] - vec_1[1] * vec_2[0]) /
                              product),
-                    acos((vec_1[0] * vec_2[1] - vec_1[1] * vec_2[0]) / product),
-                    match_1, match_2));
+                        match_1, match_2));
+                }
             }
         }
-    }
 
-    if (angles.size() < min_match) {
-        return 0;
-    }
+        if (angles.size() < min_match) {
+            return 0;
+        }
 
-    int count = 0;
-    for (int j = 0; j < angles.size(); j++) {
-        angle angle_1 = angles[j];
-        for (int k = j + 1; k < angles.size(); k++) {
-            angle angle_2 = angles[k];
+        int count = 0;
+        for (int j = 0; j < angles.size(); j++) {
+            angle angle_1 = angles[j];
+            for (int k = j + 1; k < angles.size(); k++) {
+                angle angle_2 = angles[k];
 
-            if (1 - std::min(angle_1.sin, angle_2.sin) /
-                            std::max(angle_1.sin, angle_2.sin) <=
-                    angle_match &&
-                1 - std::min(angle_1.cos, angle_2.cos) /
-                            std::max(angle_1.cos, angle_2.cos) <=
-                    angle_match) {
+                if (1 - std::min(angle_1.sin, angle_2.sin) /
+                                std::max(angle_1.sin, angle_2.sin) <=
+                        angle_match &&
+                    1 - std::min(angle_1.cos, angle_2.cos) /
+                                std::max(angle_1.cos, angle_2.cos) <=
+                        angle_match) {
 
-                count += 1;
+                    count += 1;
+                }
             }
         }
+        return count;
     }
-    return count;
+    catch (...) {
+        return -1;
+    }
 }
 
 void sfm_free_info(SfmImgInfo* info) { delete info; }

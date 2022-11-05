@@ -100,6 +100,17 @@ public:
     constexpr stream& read(Iter&& begin, Iter&& end)
     {
         const auto dist = std::distance(begin, end);
+        return stream::read(begin, dist);
+    }
+
+    template<
+        typename Iter,
+        std::enable_if_t<std::is_same_v<typename std::iterator_traits<
+                                            std::decay_t<Iter>>::value_type,
+                                        byte>,
+                         bool> = true>
+    constexpr stream& read(Iter&& begin, std::size_t dist)
+    {
         std::copy(store_.begin(), store_.begin() + dist, begin);
         store_.erase(store_.begin(), store_.begin() + dist);
         return *this;
@@ -121,7 +132,7 @@ struct serializer<cv::Mat> : public std::true_type {
     static void serialize(const cv::Mat& m, stream& out)
     {
         out << m.type() << m.rows << m.cols;
-        out.write(m.begin<byte>(), m.end<byte>());
+        out.write(m.datastart, m.dataend);
     }
 };
 
@@ -133,7 +144,7 @@ struct deserializer<cv::Mat> : public std::true_type {
         in >> type >> rows >> cols;
         cv::Mat m;
         m.create(rows, cols, type);
-        in.read(m.begin<byte>(), m.end<byte>());
+        in.read(m.data, std::distance(m.datastart, m.dataend));
         return m;
     }
 };
