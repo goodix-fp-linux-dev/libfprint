@@ -285,6 +285,12 @@ fpi_print_sfm_match (FpPrint * template, FpPrint * print,
     {
       SfmImgInfo * pinfo = g_ptr_array_index (template->prints, i);
       int score = sfm_match_score (pinfo, against);
+      if (score < 0)
+        {
+          *error = fpi_device_error_new_msg (FP_DEVICE_ERROR_DATA_INVALID,
+                                             "error in sfm_match_score");
+          return FPI_MATCH_ERROR;
+        }
       fp_dbg ("sfm score %d/%d", score, bz3_threshold);
       if (score >= bz3_threshold)
         return FPI_MATCH_SUCCESS;
