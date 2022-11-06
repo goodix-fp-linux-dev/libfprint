@@ -37,12 +37,6 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 
-namespace fs = std::filesystem;
-
-struct SfmEnrollData {
-    fs::path img_path_base;
-};
-
 namespace bin {
 
 template<>
@@ -93,20 +87,7 @@ struct angle {
     {
     }
 };
-// namespace bin
 } // namespace
-
-SfmEnrollData* sfm_begin_enroll(const char* username, int finger)
-{
-    const auto img_path = fs::path{"~/goodixtls-store-dev-remove-later"} /
-                          "prints" / username / std::to_string(finger);
-    auto* enroll_data = new SfmEnrollData{img_path};
-    if (!fs::exists(img_path)) {
-        fs::create_directories(img_path);
-    }
-    cv::KeyPoint kp;
-    return enroll_data;
-}
 
 SfmImgInfo* sfm_copy_info(SfmImgInfo* info) { return new SfmImgInfo{*info}; }
 
@@ -132,7 +113,6 @@ SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len)
     }
 }
 
-//int sfm_info_equal(SfmImgInfo* lhs, SfmImgInfo* rhs) { return std::equal(lhs->descriptors.databegin, lhs->descriptors.dataend, rhs->descriptors.datastart, rhs->descriptors.dataend) && lhs->keypoints == rhs->keypoints; }
 SfmImgInfo* sfm_extract(const SfmPix* pix, int width, int height)
 {
     cv::Mat img;
@@ -143,10 +123,8 @@ SfmImgInfo* sfm_extract(const SfmPix* pix, int width, int height)
 
     cv::Mat descs;
     cv::SIFT::create()->detectAndCompute(img, roi, pts, descs);
-    //cv::imwrite("./finger-extract.png", img);
 
     auto* info = new SfmImgInfo{pts, descs};
-    //*minutae = keypoints_to_fp_minutiae(pts);
     return info;
 }
 
@@ -235,12 +213,3 @@ int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled)
 }
 
 void sfm_free_info(SfmImgInfo* info) { delete info; }
-
-void sfm_add_enroll_frame(SfmEnrollData* data, unsigned char* pix, int width,
-                          int height)
-{
-    cv::Mat img{height, width, CV_8UC1, pix};
-    cv::imwrite(data->img_path_base / "img.pgm", img);
-}
-
-void sfm_end_enroll(SfmEnrollData* data) { delete data; }
