@@ -170,7 +170,6 @@ int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled)
                 nb_matched++;
             }
         }
-        std::cout << "nb matched: " << nb_matched << '\n';
         if (nb_matched < min_match) {
             return 0;
         }
