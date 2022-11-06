@@ -23,25 +23,74 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-struct SfmEnrollData;
-typedef struct SfmEnrollData SfmEnrollData;
 typedef unsigned char SfmPix;
+/**
+ * @brief Contains information used by the sigfm algorithm for matching
+ * @details Get one from sfm_extract() and make sure to clean it up with sfm_free_info()
+ * @struct SfmImgInfo
+ */
 typedef struct SfmImgInfo SfmImgInfo;
 
-SfmEnrollData* sfm_begin_enroll(const char* username, int finger);
-void sfm_add_enroll_frame(SfmEnrollData* data, unsigned char* pix, int width,
-                          int height);
+/**
+ * @brief Extracts information from an image for later use sfm_match_score
+ *
+ * @param pix Pixels of the image must be width * height in length
+ * @param width Width of the image
+ * @param height Height of the image
+ * @return SfmImgInfo* Info that can be used with the API
+ */
 SfmImgInfo* sfm_extract(const SfmPix* pix, int width, int height);
 
-void sfm_end_enroll(SfmEnrollData* data);
+/**
+ * @brief Destroy an SfmImgInfo
+ * @warning Call this instead of free() or you will get UB!
+ * @param info SfmImgInfo to destroy
+ */
 void sfm_free_info(SfmImgInfo* info);
-int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled);
-unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen);
-SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len);
-int sfm_keypoints_count(SfmImgInfo* info);
-SfmImgInfo* sfm_copy_info(SfmImgInfo* info);
 
-//int sfm_info_equal(SfmImgInfo* lhs, SfmImgInfo* rhs);
+/**
+ * @brief Score how closely a frame matches another
+ *
+ * @param frame Print to be checked
+ * @param enrolled Canonical print to verify against
+ * @return int Score of how closely they match, values <0 indicate error, 0 means always reject
+ */
+int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled);
+
+/**
+ * @brief Serialize an image info for storage
+ *
+ * @param info SfmImgInfo to store
+ * @param outlen output: Length of the returned byte array
+ * @return unsigned* char byte array for storage, should be free'd by the callee
+ */
+unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen);
+/**
+ * @brief Deserialize an SfmImgInfo from storage
+ *
+ * @param bytes Byte array to deserialize from
+ * @param len Length of the byte array
+ * @return SfmImgInfo* Deserialized info, or NULL if deserialization failed
+ */
+SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len);
+
+/**
+ * @brief Keypoints for an image. Low keypoints generally means the image is
+ * low quality for matching
+ *
+ * @param info
+ * @return int
+ */
+
+int sfm_keypoints_count(SfmImgInfo* info);
+
+/**
+ * @brief Copy an SfmImgInfo
+ *
+ * @param info Source of copy
+ * @return SfmImgInfo* Newly allocated and copied version of info
+ */
+SfmImgInfo* sfm_copy_info(SfmImgInfo* info);
 
 #ifdef __cplusplus
 }
