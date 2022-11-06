@@ -60,7 +60,7 @@ fpi_print_add_print (FpPrint *print, FpPrint *add)
   void * to_add =
     print->type == FPI_PRINT_NBIS ?
     g_memdup2 (add->prints->pdata[0], sizeof (struct xyt_struct)) :
-    (void *) sfm_copy_info (add->prints->pdata[0]);
+    (void *) sigfm_copy_info (add->prints->pdata[0]);
   g_ptr_array_add (print->prints, to_add);
 }
 
@@ -87,7 +87,7 @@ fpi_print_set_type (FpPrint     *print,
       g_assert_null (print->prints);
       print->prints = g_ptr_array_new_with_free_func (
         print->type == FPI_PRINT_NBIS ? g_free :
-        (void (*)(void *))(sfm_free_info));
+        (void (*)(void *))(sigfm_free_info));
     }
   g_object_notify (G_OBJECT (print), "fpi-type");
 }
@@ -204,7 +204,7 @@ fpi_print_add_from_image (FpPrint *print,
     }
   else if (print->type == FPI_PRINT_SIGFM)
     {
-      SfmImgInfo *info = fp_image_get_sfm_info (image);
+      SigfmImgInfo *info = fp_image_get_sigfm_info (image);
       g_ptr_array_add (print->prints, info);
     }
 
@@ -271,29 +271,29 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
 }
 
 FpiMatchResult
-fpi_print_sfm_match (FpPrint * template, FpPrint * print,
+fpi_print_sigfm_match (FpPrint * template, FpPrint * print,
                      gint bz3_threshold, GError ** error)
 {
   if (template->type != FPI_PRINT_SIGFM)
     {
       *error = fpi_device_error_new_msg (
         FP_DEVICE_ERROR_NOT_SUPPORTED,
-        "Cannot call sfm match with non-sfm print data, type was %d",
+        "Cannot call sigfm match with non-sigfm print data, type was %d",
         template->type);
       return FPI_MATCH_ERROR;
     }
-  SfmImgInfo * against = g_ptr_array_index (print->prints, 0);
+  SigfmImgInfo * against = g_ptr_array_index (print->prints, 0);
   for (int i = 0; i != template->prints->len; ++i)
     {
-      SfmImgInfo * pinfo = g_ptr_array_index (template->prints, i);
-      int score = sfm_match_score (pinfo, against);
+      SigfmImgInfo * pinfo = g_ptr_array_index (template->prints, i);
+      int score = sigfm_match_score (pinfo, against);
       if (score < 0)
         {
           *error = fpi_device_error_new_msg (FP_DEVICE_ERROR_DATA_INVALID,
-                                             "error in sfm_match_score");
+                                             "error in sigfm_match_score");
           return FPI_MATCH_ERROR;
         }
-      fp_dbg ("sfm score %d/%d", score, bz3_threshold);
+      fp_dbg ("sigfm score %d/%d", score, bz3_threshold);
       if (score >= bz3_threshold)
         return FPI_MATCH_SUCCESS;
     }

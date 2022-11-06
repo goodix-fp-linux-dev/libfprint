@@ -67,12 +67,12 @@ struct _FpImage
   FpiImageFlags flags;
 
   /*< private >*/
-  guint8     *data;
-  guint8     *binarized;
+  guint8       *data;
+  guint8       *binarized;
 
-  GPtrArray  *minutiae;
-  SfmImgInfo *sfm_info;
-  guint       ref_count;
+  GPtrArray    *minutiae;
+  SigfmImgInfo *sigfm_info;
+  guint         ref_count;
 };
 
 gint fpi_std_sq_dev (const guint8 *buf,

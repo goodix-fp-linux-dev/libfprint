@@ -4,7 +4,7 @@
 #include <opencv2/core.hpp>
 #include <vector>
 
-struct SfmImgInfo {
+struct SigfmImgInfo {
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat descriptors;
 };

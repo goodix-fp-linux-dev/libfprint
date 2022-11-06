@@ -174,12 +174,12 @@ typedef struct
 
 typedef struct
 {
-  SfmImgInfo        * sfm_info;
+  SigfmImgInfo        * sigfm_info;
   guchar            * image;
   gint                width;
   gint                height;
   GAsyncReadyCallback user_cb;
-} ExtractSfmData;
+} ExtractSigfmData;
 
 static void
 fp_image_detect_minutiae_free (DetectMinutiaeData *data)
@@ -191,20 +191,20 @@ fp_image_detect_minutiae_free (DetectMinutiaeData *data)
 }
 
 static void
-fp_image_sfm_extract_free (ExtractSfmData * data)
+fp_image_sigfm_extract_free (ExtractSigfmData * data)
 {
   g_clear_pointer (&data->image, g_free);
-  g_clear_pointer (&data->sfm_info, sfm_free_info);
+  g_clear_pointer (&data->sigfm_info, sigfm_free_info);
   g_free (data);
 }
 
 static void
-fp_image_sfm_extract_cb (GObject * source_object, GAsyncResult * res,
+fp_image_sigfm_extract_cb (GObject * source_object, GAsyncResult * res,
                          gpointer user_data)
 {
   GTask * task = G_TASK (res);
   FpImage * image;
-  ExtractSfmData * data = g_task_get_task_data (task);
+  ExtractSigfmData * data = g_task_get_task_data (task);
 
   if (!g_task_had_error (task))
     {
@@ -212,7 +212,7 @@ fp_image_sfm_extract_cb (GObject * source_object, GAsyncResult * res,
 
       g_clear_pointer (&image->data, g_free);
       image->data = g_steal_pointer (&data->image);
-      image->sfm_info = g_steal_pointer (&data->sfm_info);
+      image->sigfm_info = g_steal_pointer (&data->sigfm_info);
     }
 
   if (data->user_cb)
@@ -307,18 +307,18 @@ invert_colors (guint8 *data, gint width, gint height)
 }
 
 static void
-fp_image_sfm_extract_thread_func (GTask * task, void * src_obj,
+fp_image_sigfm_extract_thread_func (GTask * task, void * src_obj,
                                   void * task_data,
                                   GCancellable * cancellable)
 {
-  ExtractSfmData * data = task_data;
+  ExtractSigfmData * data = task_data;
   GTimer * timer = g_timer_new ();
 
-  data->sfm_info = sfm_extract (data->image, data->width, data->height);
+  data->sigfm_info = sigfm_extract (data->image, data->width, data->height);
   g_timer_stop (timer);
-  fp_dbg ("sfm extract completed in %f secs", g_timer_elapsed (timer, NULL));
+  fp_dbg ("sigfm extract completed in %f secs", g_timer_elapsed (timer, NULL));
   g_timer_destroy (timer);
-  if (sfm_keypoints_count (data->sfm_info) == 0)
+  if (sigfm_keypoints_count (data->sigfm_info) == 0)
     {
       g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_FAILED,
                                "No keypoints found");
@@ -494,20 +494,20 @@ fp_image_get_minutiae (FpImage *self)
   return self->minutiae;
 }
 
-SfmImgInfo *
-fp_image_get_sfm_info (FpImage *self)
+SigfmImgInfo *
+fp_image_get_sigfm_info (FpImage *self)
 {
-  return self->sfm_info;
+  return self->sigfm_info;
 }
 
 void
-fp_image_extract_sfm_info (FpImage * self, GCancellable * cancellable,
+fp_image_extract_sigfm_info (FpImage * self, GCancellable * cancellable,
                            GAsyncReadyCallback callback, gpointer user_data)
 {
   GTask * task;
-  ExtractSfmData * data = g_new0 (ExtractSfmData, 1);
+  ExtractSigfmData * data = g_new0 (ExtractSigfmData, 1);
 
-  task = g_task_new (self, cancellable, fp_image_sfm_extract_cb, user_data);
+  task = g_task_new (self, cancellable, fp_image_sigfm_extract_cb, user_data);
 
   data->image = g_malloc (self->width * self->height);
   memcpy (data->image, self->data, self->width * self->height);
@@ -516,8 +516,8 @@ fp_image_extract_sfm_info (FpImage * self, GCancellable * cancellable,
   data->user_cb = callback;
 
   g_task_set_task_data (task, data,
-                        (GDestroyNotify) fp_image_sfm_extract_free);
-  g_task_run_in_thread (task, fp_image_sfm_extract_thread_func);
+                        (GDestroyNotify) fp_image_sigfm_extract_free);
+  g_task_run_in_thread (task, fp_image_sigfm_extract_thread_func);
 }
 /**
  * fp_image_detect_minutiae:
