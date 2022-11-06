@@ -40,18 +40,18 @@
 namespace bin {
 
 template<>
-struct serializer<SfmImgInfo> : public std::true_type {
-    static void serialize(const SfmImgInfo& info, stream& out)
+struct serializer<SigfmImgInfo> : public std::true_type {
+    static void serialize(const SigfmImgInfo& info, stream& out)
     {
         out << info.keypoints << info.descriptors;
     }
 };
 
 template<>
-struct deserializer<SfmImgInfo> : public std::true_type {
-    static SfmImgInfo deserialize(stream& in)
+struct deserializer<SigfmImgInfo> : public std::true_type {
+    static SigfmImgInfo deserialize(stream& in)
     {
-        SfmImgInfo info;
+        SigfmImgInfo info;
         in >> info.keypoints >> info.descriptors;
         return info;
     }
@@ -89,10 +89,10 @@ struct angle {
 };
 } // namespace
 
-SfmImgInfo* sfm_copy_info(SfmImgInfo* info) { return new SfmImgInfo{*info}; }
+SigfmImgInfo* sigfm_copy_info(SigfmImgInfo* info) { return new SigfmImgInfo{*info}; }
 
-int sfm_keypoints_count(SfmImgInfo* info) { return info->keypoints.size(); }
-unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen)
+int sigfm_keypoints_count(SigfmImgInfo* info) { return info->keypoints.size(); }
+unsigned char* sigfm_serialize_binary(SigfmImgInfo* info, int* outlen)
 {
     bin::stream s;
     s << *info;
@@ -100,11 +100,11 @@ unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen)
     return s.copy_buffer();
 }
 
-SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len)
+SigfmImgInfo* sigfm_deserialize_binary(const unsigned char* bytes, int len)
 {
     try {
         bin::stream s{bytes, bytes + len};
-        auto info = std::make_unique<SfmImgInfo>();
+        auto info = std::make_unique<SigfmImgInfo>();
         s >> *info;
         return info.release();
     }
@@ -113,7 +113,7 @@ SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len)
     }
 }
 
-SfmImgInfo* sfm_extract(const SfmPix* pix, int width, int height)
+SigfmImgInfo* sigfm_extract(const SfmPix* pix, int width, int height)
 {
     cv::Mat img;
     img.create(height, width, CV_8UC1);
@@ -124,11 +124,11 @@ SfmImgInfo* sfm_extract(const SfmPix* pix, int width, int height)
     cv::Mat descs;
     cv::SIFT::create()->detectAndCompute(img, roi, pts, descs);
 
-    auto* info = new SfmImgInfo{pts, descs};
+    auto* info = new SigfmImgInfo{pts, descs};
     return info;
 }
 
-int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled)
+int sigfm_match_score(SigfmImgInfo* frame, SigfmImgInfo* enrolled)
 {
     try {
         std::vector<std::vector<cv::DMatch>> points;
@@ -212,4 +212,4 @@ int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled)
     }
 }
 
-void sfm_free_info(SfmImgInfo* info) { delete info; }
+void sigfm_free_info(SigfmImgInfo* info) { delete info; }

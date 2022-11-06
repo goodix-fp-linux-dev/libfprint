@@ -69,7 +69,7 @@ struct _FpImage
   guint8      *binarized;
 
   GPtrArray   *minutiae;
-  SfmImgInfo * sfm_info;
+  SigfmImgInfo * sigfm_info;
   guint        ref_count;
 };
 

@@ -107,12 +107,12 @@ TEST_SUITE("binary")
         s >> ptout;
         CHECK(to_str(pt) == to_str(ptout));
     }
-    TEST_CASE("sfm img info can be stored and restored")
+    TEST_CASE("sigfm img info can be stored and restored")
     {
         constexpr auto img_w = 256;
         constexpr auto img_h = 256;
         constexpr auto img = embedded::capture_aes3500;
-        SfmImgInfo* info = sfm_extract(img, img_w, img_h);
+        SigfmImgInfo* info = sigfm_extract(img, img_w, img_h);
         REQUIRE(info != nullptr);
         const auto inf1desc = info->descriptors;
         cv::Mat descout;
@@ -122,11 +122,11 @@ TEST_SUITE("binary")
         CHECK(comp_mats(inf1desc, descout));
 
         int slen;
-        const auto bin_data = sfm_serialize_binary(info, &slen);
+        const auto bin_data = sigfm_serialize_binary(info, &slen);
         int slen2;
-        SfmImgInfo* info2 = sfm_deserialize_binary(bin_data, slen);
+        SigfmImgInfo* info2 = sigfm_deserialize_binary(bin_data, slen);
         REQUIRE(info2);
-        const auto bin_data2 = sfm_serialize_binary(info2, &slen2);
+        const auto bin_data2 = sigfm_serialize_binary(info2, &slen2);
         CHECK(slen == slen2);
         CHECK(std::equal(bin_data, bin_data + slen, bin_data2,
                          bin_data2 + slen2));
@@ -135,7 +135,7 @@ TEST_SUITE("binary")
         REQUIRE(std::equal(
             info->descriptors.datastart, info->descriptors.dataend,
             info2->descriptors.datastart, info2->descriptors.dataend));
-        sfm_free_info(info);
-        sfm_free_info(info2);
+        sigfm_free_info(info);
+        sigfm_free_info(info2);
     }
 }

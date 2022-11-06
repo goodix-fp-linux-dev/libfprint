@@ -725,9 +725,9 @@ fp_print_serialize (FpPrint *print,
       for (int i = 0; i != print->prints->len; ++i)
         {
           g_variant_builder_open (&nested, G_VARIANT_TYPE ("(ay)"));
-          SfmImgInfo * info = g_ptr_array_index (print->prints, i);
+          SigfmImgInfo * info = g_ptr_array_index (print->prints, i);
           int slen;
-          unsigned char * serialized = sfm_serialize_binary (info, &slen);
+          unsigned char * serialized = sigfm_serialize_binary (info, &slen);
           g_variant_builder_add_value (
             &nested, g_variant_new_fixed_array (G_VARIANT_TYPE_BYTE,
                                                 serialized, slen, 1));
@@ -906,21 +906,21 @@ fp_print_deserialize (const guchar *data,
 
       for (i = 0; i < g_variant_n_children (prints); i++)
         {
-          g_autoptr(GVariant) sfm_data = NULL;
+          g_autoptr(GVariant) sigfm_data = NULL;
 
-          sfm_data = g_variant_get_child_value (prints, i);
+          sigfm_data = g_variant_get_child_value (prints, i);
 
-          GVariant * child = g_variant_get_child_value (sfm_data, 0);
+          GVariant * child = g_variant_get_child_value (sigfm_data, 0);
           gsize slen;
           const unsigned char * serialized =
             g_variant_get_fixed_array (child, &slen, sizeof (unsigned char));
           g_variant_unref (child);
 
-          SfmImgInfo * sfm_info = sfm_deserialize_binary (serialized, slen);
-          if (!sfm_info)
+          SigfmImgInfo * sigfm_info = sigfm_deserialize_binary (serialized, slen);
+          if (!sigfm_info)
             goto invalid_format;
 
-          g_ptr_array_add (result->prints, g_steal_pointer (&sfm_info));
+          g_ptr_array_add (result->prints, g_steal_pointer (&sigfm_info));
         }
     }
   else if (type == FPI_PRINT_RAW)

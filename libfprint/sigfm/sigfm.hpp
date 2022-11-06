@@ -26,27 +26,27 @@ extern "C" {
 typedef unsigned char SfmPix;
 /**
  * @brief Contains information used by the sigfm algorithm for matching
- * @details Get one from sfm_extract() and make sure to clean it up with sfm_free_info()
- * @struct SfmImgInfo
+ * @details Get one from sigfm_extract() and make sure to clean it up with sigfm_free_info()
+ * @struct SigfmImgInfo
  */
-typedef struct SfmImgInfo SfmImgInfo;
+typedef struct SigfmImgInfo SigfmImgInfo;
 
 /**
- * @brief Extracts information from an image for later use sfm_match_score
+ * @brief Extracts information from an image for later use sigfm_match_score
  *
  * @param pix Pixels of the image must be width * height in length
  * @param width Width of the image
  * @param height Height of the image
- * @return SfmImgInfo* Info that can be used with the API
+ * @return SigfmImgInfo* Info that can be used with the API
  */
-SfmImgInfo* sfm_extract(const SfmPix* pix, int width, int height);
+SigfmImgInfo* sigfm_extract(const SfmPix* pix, int width, int height);
 
 /**
- * @brief Destroy an SfmImgInfo
+ * @brief Destroy an SigfmImgInfo
  * @warning Call this instead of free() or you will get UB!
- * @param info SfmImgInfo to destroy
+ * @param info SigfmImgInfo to destroy
  */
-void sfm_free_info(SfmImgInfo* info);
+void sigfm_free_info(SigfmImgInfo* info);
 
 /**
  * @brief Score how closely a frame matches another
@@ -55,24 +55,24 @@ void sfm_free_info(SfmImgInfo* info);
  * @param enrolled Canonical print to verify against
  * @return int Score of how closely they match, values <0 indicate error, 0 means always reject
  */
-int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled);
+int sigfm_match_score(SigfmImgInfo* frame, SigfmImgInfo* enrolled);
 
 /**
  * @brief Serialize an image info for storage
  *
- * @param info SfmImgInfo to store
+ * @param info SigfmImgInfo to store
  * @param outlen output: Length of the returned byte array
  * @return unsigned* char byte array for storage, should be free'd by the callee
  */
-unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen);
+unsigned char* sigfm_serialize_binary(SigfmImgInfo* info, int* outlen);
 /**
- * @brief Deserialize an SfmImgInfo from storage
+ * @brief Deserialize an SigfmImgInfo from storage
  *
  * @param bytes Byte array to deserialize from
  * @param len Length of the byte array
- * @return SfmImgInfo* Deserialized info, or NULL if deserialization failed
+ * @return SigfmImgInfo* Deserialized info, or NULL if deserialization failed
  */
-SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len);
+SigfmImgInfo* sigfm_deserialize_binary(const unsigned char* bytes, int len);
 
 /**
  * @brief Keypoints for an image. Low keypoints generally means the image is
@@ -82,15 +82,15 @@ SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len);
  * @return int
  */
 
-int sfm_keypoints_count(SfmImgInfo* info);
+int sigfm_keypoints_count(SigfmImgInfo* info);
 
 /**
- * @brief Copy an SfmImgInfo
+ * @brief Copy an SigfmImgInfo
  *
  * @param info Source of copy
- * @return SfmImgInfo* Newly allocated and copied version of info
+ * @return SigfmImgInfo* Newly allocated and copied version of info
  */
-SfmImgInfo* sfm_copy_info(SfmImgInfo* info);
+SigfmImgInfo* sigfm_copy_info(SigfmImgInfo* info);
 
 #ifdef __cplusplus
 }
