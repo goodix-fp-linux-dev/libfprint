@@ -912,7 +912,7 @@ fp_print_deserialize (const guchar *data,
 
           GVariant * child = g_variant_get_child_value (sfm_data, 0);
           gsize slen;
-          unsigned char * serialized =
+          const unsigned char * serialized =
             g_variant_get_fixed_array (child, &slen, sizeof (unsigned char));
           g_variant_unref (child);
 

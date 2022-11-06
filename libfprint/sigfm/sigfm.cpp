@@ -72,16 +72,8 @@ constexpr auto min_match = 5;
 struct match {
     cv::Point2i p1;
     cv::Point2i p2;
-    match(cv::Point2i ip1, cv::Point2i ip2)
-    {
-        this->p1 = ip1;
-        this->p2 = ip2;
-    }
-    match()
-    {
-        this->p1 = cv::Point2i(0, 0);
-        this->p2 = cv::Point2i(0, 0);
-    }
+    match(cv::Point2i ip1, cv::Point2i ip2) : p1{ip1}, p2{ip2} {}
+    match() : p1{cv::Point2i(0, 0)}, p2{cv::Point2i(0, 0)} {}
     bool operator==(const match& right) const
     {
         return std::tie(this->p1, this->p2) == std::tie(right.p1, right.p2);
@@ -92,28 +84,13 @@ struct match {
                ((this->p1.y < right.p1.y) && this->p1.x < right.p1.x);
     }
 };
-inline std::ostream& operator<<(std::ostream& os, const match& arg)
-{
-    os << "Point 1: (" << arg.p1.x << ", " << arg.p1.y << ")" << '\n'
-       << "Point 2: (" << arg.p2.x << ", " << arg.p2.y << ")" << '\n';
-    return os;
-}
-inline std::string to_string(match const& arg)
-{
-    std::ostringstream ss;
-    ss << arg;
-    return std::move(ss).str(); // enable efficiencies in c++17
-}
 struct angle {
     double cos;
     double sin;
     match corr_matches[2];
-    angle(double cos, double sin, match m1, match m2)
+    angle(double cos_, double sin_, match m1, match m2)
+        : cos{cos_}, sin{sin_}, corr_matches{m1, m2}
     {
-        this->cos = cos;
-        this->sin = sin;
-        this->corr_matches[0] = m1;
-        this->corr_matches[1] = m2;
     }
 };
 // namespace bin
@@ -142,7 +119,7 @@ unsigned char* sfm_serialize_binary(SfmImgInfo* info, int* outlen)
     return s.copy_buffer();
 }
 
-SfmImgInfo* sfm_deserialize_binary(unsigned char* bytes, int len)
+SfmImgInfo* sfm_deserialize_binary(const unsigned char* bytes, int len)
 {
     try {
         bin::stream s{bytes, bytes + len};
@@ -201,9 +178,9 @@ int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled)
                                    matches_unique.end()};
 
         std::vector<angle> angles;
-        for (int j = 0; j < matches.size(); j++) {
+        for (std::size_t j = 0; j < matches.size(); j++) {
             match match_1 = matches[j];
-            for (int k = j + 1; k < matches.size(); k++) {
+            for (std::size_t k = j + 1; k < matches.size(); k++) {
                 match match_2 = matches[k];
 
                 int vec_1[2] = {match_1.p1.x - match_2.p1.x,
@@ -235,9 +212,9 @@ int sfm_match_score(SfmImgInfo* frame, SfmImgInfo* enrolled)
         }
 
         int count = 0;
-        for (int j = 0; j < angles.size(); j++) {
+        for (std::size_t j = 0; j < angles.size(); j++) {
             angle angle_1 = angles[j];
-            for (int k = j + 1; k < angles.size(); k++) {
+            for (std::size_t k = j + 1; k < angles.size(); k++) {
                 angle angle_2 = angles[k];
 
                 if (1 - std::min(angle_1.sin, angle_2.sin) /
