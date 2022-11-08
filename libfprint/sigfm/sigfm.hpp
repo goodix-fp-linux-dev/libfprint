@@ -23,7 +23,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef unsigned char SfmPix;
+typedef unsigned char SigfmPix;
 /**
  * @brief Contains information used by the sigfm algorithm for matching
  * @details Get one from sigfm_extract() and make sure to clean it up with sigfm_free_info()
@@ -39,7 +39,7 @@ typedef struct SigfmImgInfo SigfmImgInfo;
  * @param height Height of the image
  * @return SigfmImgInfo* Info that can be used with the API
  */
-SigfmImgInfo* sigfm_extract(const SfmPix* pix, int width, int height);
+SigfmImgInfo* sigfm_extract(const SigfmPix* pix, int width, int height);
 
 /**
  * @brief Destroy an SigfmImgInfo

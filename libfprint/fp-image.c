@@ -178,7 +178,7 @@ typedef struct
   gint                width;
   gint                height;
   GAsyncReadyCallback user_cb;
-} ExtractSfmData;
+} ExtractSigfmData;
 
 static void
 fp_image_detect_minutiae_free (DetectMinutiaeData *data)
@@ -190,7 +190,7 @@ fp_image_detect_minutiae_free (DetectMinutiaeData *data)
 }
 
 static void
-fp_image_sigfm_extract_free (ExtractSfmData * data)
+fp_image_sigfm_extract_free (ExtractSigfmData * data)
 {
   g_clear_pointer (&data->image, g_free);
   g_clear_pointer (&data->sigfm_info, sigfm_free_info);
@@ -203,7 +203,7 @@ fp_image_sigfm_extract_cb (GObject * source_object, GAsyncResult * res,
 {
   GTask * task = G_TASK (res);
   FpImage * image;
-  ExtractSfmData * data = g_task_get_task_data (task);
+  ExtractSigfmData * data = g_task_get_task_data (task);
 
   if (!g_task_had_error (task))
     {
@@ -309,7 +309,7 @@ fp_image_sigfm_extract_thread_func (GTask * task, void * src_obj,
                                   void * task_data,
                                   GCancellable * cancellable)
 {
-  ExtractSfmData * data = task_data;
+  ExtractSigfmData * data = task_data;
   GTimer * timer = g_timer_new ();
 
   data->sigfm_info = sigfm_extract (data->image, data->width, data->height);
@@ -503,7 +503,7 @@ fp_image_extract_sigfm_info (FpImage * self, GCancellable * cancellable,
                            GAsyncReadyCallback callback, gpointer user_data)
 {
   GTask * task;
-  ExtractSfmData * data = g_new0 (ExtractSfmData, 1);
+  ExtractSigfmData * data = g_new0 (ExtractSigfmData, 1);
 
   task = g_task_new (self, cancellable, fp_image_sigfm_extract_cb, user_data);
 

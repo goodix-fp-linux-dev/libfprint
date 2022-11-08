@@ -113,7 +113,7 @@ SigfmImgInfo* sigfm_deserialize_binary(const unsigned char* bytes, int len)
     }
 }
 
-SigfmImgInfo* sigfm_extract(const SfmPix* pix, int width, int height)
+SigfmImgInfo* sigfm_extract(const SigfmPix* pix, int width, int height)
 {
     cv::Mat img;
     img.create(height, width, CV_8UC1);
