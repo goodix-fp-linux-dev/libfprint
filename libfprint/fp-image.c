@@ -316,7 +316,7 @@ fp_image_sigfm_extract_thread_func (GTask * task, void * src_obj,
   g_timer_stop (timer);
   fp_dbg ("sigfm extract completed in %f secs", g_timer_elapsed (timer, NULL));
   g_timer_destroy (timer);
-  if (sigfm_keypoints_count (data->sigfm_info) == 0)
+  if (sigfm_keypoints_count (data->sigfm_info) < 25)
     {
       g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_FAILED,
                                "No keypoints found");
