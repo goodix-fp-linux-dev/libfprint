@@ -41,9 +41,9 @@
  * @print: A #FpPrint
  * @add: Print to append to @print
  *
- * Appends the single #FPI_PRINT_NBIS print from @add to the collection of
- * prints in @print. Both print objects need to be of type #FPI_PRINT_NBIS
- * for this to work.
+ * Appends the single #FPI_PRINT_NBIS or #FPI_PRINT_SIGFM print from @add
+ * to the collection of prints in @print. Both print objects need to be of
+ * the same type for this to work.
  */
 void
 fpi_print_add_print (FpPrint *print, FpPrint *add)
@@ -156,7 +156,7 @@ minutiae_to_xyt (struct fp_minutiae *minutiae,
  * @error: Return location for error
  *
  * Extracts the minutiae from the given image and adds it to @print of
- * type #FPI_PRINT_NBIS.
+ * type #FPI_PRINT_NBIS or #FPI_PRINT_SIGFM.
  *
  * The @image will be kept so that API users can get retrieve it e.g.
  * for debugging purposes.
@@ -267,6 +267,21 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
   return FPI_MATCH_FAIL;
 }
 
+/**
+ * fpi_print_sigfm_match:
+ * @template: A #FpPrint containing one or more prints
+ * @print: A newly scanned #FpPrint to test
+ * @bz3_threshold: The BZ3 match threshold
+ * @error: Return location for error
+ *
+ * Match the newly scanned @print (containing exactly one print) against the
+ * prints contained in @template which will have been stored during enrollment.
+ *
+ * Both @template and @print need to be of type #FPI_PRINT_SIGFM for this to
+ * work.
+ *
+ * Returns: Whether the prints match, @error will be set if #FPI_MATCH_ERROR is returned
+ */
 FpiMatchResult
 fpi_print_sigfm_match (FpPrint * template, FpPrint * print,
                      gint bz3_threshold, GError ** error)

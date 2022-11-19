@@ -11,6 +11,7 @@ G_BEGIN_DECLS
  * @FPI_PRINT_UNDEFINED: Undefined type, this happens prior to enrollment
  * @FPI_PRINT_RAW: A raw print where the data is directly compared
  * @FPI_PRINT_NBIS: NBIS minutiae comparison
+ * @FPI_PRINT_SIGFM: SIGFM minutiae comparison
  */
 typedef enum {
   FPI_PRINT_UNDEFINED = 0,
