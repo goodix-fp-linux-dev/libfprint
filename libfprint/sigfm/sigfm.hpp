@@ -2,6 +2,7 @@
 
 // Copyright (C) 2022 Matthieu CHARETTE <matthieu.charette@gmail.com>
 // Copyright (c) 2022 Natasha England-Elbro <ashenglandelbro@protonmail.com>
+// Copyright (c) 2022 Timur Mangliev <tigrmango@gmail.com>
 
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
