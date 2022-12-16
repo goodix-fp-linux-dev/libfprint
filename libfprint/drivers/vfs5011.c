@@ -894,7 +894,7 @@ fpi_device_vfs5011_class_init (FpDeviceVfs5011Class *klass)
   img_class->activate = dev_activate;
   img_class->deactivate = dev_deactivate;
 
-  img_class->bz3_threshold = 20;
+  img_class->score_threshold = 20;
 
   img_class->img_width = VFS5011_IMAGE_WIDTH;
   img_class->img_height = -1;

@@ -161,7 +161,7 @@ static unsigned char repeat_pkts[][EGIS0570_PKTSIZE] =
 };
 
 /*
- * This sensor is small so I decided to reduce bz3_threshold from
+ * This sensor is small so I decided to reduce score_threshold from
  * 40 to 10 to have more success to fail ratio
  * Bozorth3 Algorithm seems not fine at the end
  * foreget about security :))

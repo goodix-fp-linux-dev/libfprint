@@ -766,7 +766,7 @@ fpi_device_vfs0050_class_init (FpDeviceVfs0050Class *klass)
   img_class->activate = dev_activate;
   img_class->deactivate = dev_deactivate;
 
-  img_class->bz3_threshold = 24;
+  img_class->score_threshold = 24;
 
   img_class->img_width = VFS_IMAGE_WIDTH;
   img_class->img_height = -1;

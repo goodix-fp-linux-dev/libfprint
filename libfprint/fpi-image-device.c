@@ -326,10 +326,10 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
       if (print)
         {
           if (priv->algorithm == FPI_PRINT_NBIS)
-            result = fpi_print_bz3_match (template, print, priv->bz3_threshold,
+            result = fpi_print_bz3_match (template, print, priv->score_threshold,
                                           &error);
           else if (priv->algorithm == FPI_PRINT_SIGFM)
-            result = fpi_print_sigfm_match (template, print, priv->bz3_threshold,
+            result = fpi_print_sigfm_match (template, print, priv->score_threshold,
                                           &error);
         }
       else
@@ -356,10 +356,10 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
           int match_result = FPI_MATCH_ERROR;
           if (priv->algorithm == FPI_PRINT_NBIS)
             match_result = fpi_print_bz3_match (template, print,
-                                                priv->bz3_threshold, &error);
+                                                priv->score_threshold, &error);
           else if (priv->algorithm == FPI_PRINT_SIGFM)
             match_result = fpi_print_sigfm_match (template, print,
-                                                priv->bz3_threshold, &error);
+                                                priv->score_threshold, &error);
 
           if (match_result == FPI_MATCH_SUCCESS)
             {
@@ -389,9 +389,9 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
 /* Private API */
 
 /**
- * fpi_image_device_set_bz3_threshold:
+ * fpi_image_device_set_score_threshold:
  * @self: a #FpImageDevice imaging fingerprint device
- * @bz3_threshold: BZ3 threshold to use
+ * @score_threshold: BZ3 threshold to use
  *
  * Dynamically adjust the bz3 threshold. This is only needed for drivers
  * that support devices with different properties. It should generally be
@@ -399,15 +399,15 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
  * callback.
  */
 void
-fpi_image_device_set_bz3_threshold (FpImageDevice *self,
-                                    gint           bz3_threshold)
+fpi_image_device_set_score_threshold (FpImageDevice *self,
+                                    gint           score_threshold)
 {
   FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
 
   g_return_if_fail (FP_IS_IMAGE_DEVICE (self));
-  g_return_if_fail (bz3_threshold > 0);
+  g_return_if_fail (score_threshold > 0);
 
-  priv->bz3_threshold = bz3_threshold;
+  priv->score_threshold = score_threshold;
 }
 
 /**

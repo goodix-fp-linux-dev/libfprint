@@ -440,5 +440,5 @@ fpi_device_egis0570_class_init (FpDeviceEgis0570Class *klass)
   img_class->img_width = EGIS0570_IMGWIDTH;
   img_class->img_height = -1;
 
-  img_class->bz3_threshold = EGIS0570_BZ3_THRESHOLD; /* security issue */
+  img_class->score_threshold = EGIS0570_BZ3_THRESHOLD; /* security issue */
 }

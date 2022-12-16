@@ -188,9 +188,9 @@ fp_image_device_constructed (GObject * obj)
   FpImageDeviceClass * cls = FP_IMAGE_DEVICE_GET_CLASS (self);
 
   /* Set default threshold. */
-  priv->bz3_threshold = BOZORTH3_DEFAULT_THRESHOLD;
-  if (cls->bz3_threshold > 0)
-    priv->bz3_threshold = cls->bz3_threshold;
+  priv->score_threshold = BOZORTH3_DEFAULT_THRESHOLD;
+  if (cls->score_threshold > 0)
+    priv->score_threshold = cls->score_threshold;
   priv->algorithm = FPI_PRINT_NBIS;
   if (cls->algorithm > 0)
     priv->algorithm = cls->algorithm;

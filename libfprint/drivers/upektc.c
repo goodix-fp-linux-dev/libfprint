@@ -457,7 +457,7 @@ fpi_device_upektc_class_init (FpiDeviceUpektcClass *klass)
   img_class->activate = dev_activate;
   img_class->deactivate = dev_deactivate;
 
-  img_class->bz3_threshold = 30;
+  img_class->score_threshold = 30;
 
   img_class->img_width = IMAGE_WIDTH;
   img_class->img_height = IMAGE_HEIGHT;

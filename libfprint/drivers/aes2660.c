@@ -82,7 +82,7 @@ fpi_device_aes2660_class_init (FpiDeviceAes2660Class *klass)
   dev_class->id_table = id_table;
   dev_class->scan_type = FP_SCAN_TYPE_SWIPE;
 
-  img_class->bz3_threshold = 20;
+  img_class->score_threshold = 20;
 
   img_class->img_width = FRAME_WIDTH + FRAME_WIDTH / 2;
   img_class->img_height = -1;
