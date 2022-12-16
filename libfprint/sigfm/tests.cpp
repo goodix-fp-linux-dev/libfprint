@@ -21,7 +21,7 @@
 
 #include "opencv2/core.hpp"
 #include "opencv2/core/types.hpp"
-#include "sigfm.hpp"
+#include "sigfm.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 

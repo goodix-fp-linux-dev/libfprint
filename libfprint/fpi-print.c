@@ -19,7 +19,7 @@
  */
 
 #define FP_COMPONENT "print"
-#include "sigfm/sigfm.hpp"
+#include "sigfm/sigfm.h"
 
 #include "fpi-log.h"
 #include "fpi-print.h"

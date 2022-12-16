@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include "sigfm/sigfm.hpp"
+#include "sigfm/sigfm.h"
 
 #include "fp-image.h"
 

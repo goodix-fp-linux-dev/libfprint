@@ -20,7 +20,7 @@
 
 #define FP_COMPONENT "image"
 
-#include "sigfm/sigfm.hpp"
+#include "sigfm/sigfm.h"
 
 #include "fpi-compat.h"
 #include "fpi-image.h"
