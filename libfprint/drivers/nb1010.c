@@ -435,7 +435,7 @@ fpi_device_nb1010_class_init (FpiDeviceNb1010Class *klass)
   img_class->img_height = FRAME_HEIGHT;
   img_class->img_width = FRAME_WIDTH;
 
-  img_class->bz3_threshold = 24;
+  img_class->score_threshold = 24;
 
   img_class->img_open = nb1010_dev_init;
   img_class->img_close = nb1010_dev_deinit;

@@ -266,7 +266,7 @@ fpi_device_aes3k_class_init (FpiDeviceAes3kClass *klass)
   img_class->deactivate = aes3k_dev_deactivate;
 
   /* Extremely low due to low image quality. */
-  img_class->bz3_threshold = 9;
+  img_class->score_threshold = 9;
 
   /* Everything else is set by the subclasses. */
 }

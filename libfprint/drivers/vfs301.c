@@ -264,7 +264,7 @@ fpi_device_vfs301_class_init (FpDeviceVfs301Class *klass)
   img_class->deactivate = dev_deactivate;
   img_class->change_state = dev_change_state;
 
-  img_class->bz3_threshold = 24;
+  img_class->score_threshold = 24;
 
   img_class->img_width = VFS301_FP_WIDTH;
   img_class->img_height = -1;

@@ -1006,5 +1006,5 @@ fpi_device_elan_class_init (FpiDeviceElanClass *klass)
   img_class->deactivate = dev_deactivate;
   img_class->change_state = dev_change_state;
 
-  img_class->bz3_threshold = 24;
+  img_class->score_threshold = 24;
 }

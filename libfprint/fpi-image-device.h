@@ -78,7 +78,7 @@ typedef enum {
 
 /**
  * FpImageDeviceClass:
- * @bz3_threshold: Threshold to consider bozorth3 score a match, default: 40
+ * @score_threshold: Threshold to consider bozorth3 score a match, default: 40
  * @img_width: Width of the image, only provide if constant
  * @img_height: Height of the image, only provide if constant
  * @img_open: Open the device and do basic initialization
@@ -110,7 +110,7 @@ struct _FpImageDeviceClass
 {
   FpDeviceClass           parent_class;
 
-  gint                    bz3_threshold;
+  gint                    score_threshold;
   gint                    img_width;
   gint                    img_height;
   FpiImageDeviceAlgorithm algorithm;
@@ -123,8 +123,8 @@ struct _FpImageDeviceClass
   void                    (*deactivate)   (FpImageDevice *dev);
 };
 
-void fpi_image_device_set_bz3_threshold (FpImageDevice *self,
-                                         gint           bz3_threshold);
+void fpi_image_device_set_score_threshold (FpImageDevice *self,
+                                         gint           score_threshold);
 
 void fpi_image_device_session_error (FpImageDevice *self,
                                      GError        *error);

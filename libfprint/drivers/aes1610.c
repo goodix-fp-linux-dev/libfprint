@@ -850,7 +850,7 @@ fpi_device_aes1610_class_init (FpiDeviceAes1610Class *klass)
   img_class->activate = dev_activate;
   img_class->deactivate = dev_deactivate;
 
-  img_class->bz3_threshold = 20;
+  img_class->score_threshold = 20;
 
   img_class->img_width = IMAGE_WIDTH;
   img_class->img_height = -1;

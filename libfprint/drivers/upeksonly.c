@@ -1540,7 +1540,7 @@ dev_init (FpImageDevice *dev)
       self->assembling_ctx.line_width = IMG_WIDTH_1001;
 
       /* The sensor resolution is too low for the normal threshold. */
-      fpi_image_device_set_bz3_threshold (dev, 25);
+      fpi_image_device_set_score_threshold (dev, 25);
       break;
 
     case UPEKSONLY_2016:

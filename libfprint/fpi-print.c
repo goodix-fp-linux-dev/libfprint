@@ -216,7 +216,7 @@ fpi_print_add_from_image (FpPrint *print,
  * fpi_print_bz3_match:
  * @template: A #FpPrint containing one or more prints
  * @print: A newly scanned #FpPrint to test
- * @bz3_threshold: The BZ3 match threshold
+ * @score_threshold: The BZ3 match threshold
  * @error: Return location for error
  *
  * Match the newly scanned @print (containing exactly one print) against the
@@ -228,7 +228,7 @@ fpi_print_add_from_image (FpPrint *print,
  * Returns: Whether the prints match, @error will be set if #FPI_MATCH_ERROR is returned
  */
 FpiMatchResult
-fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GError **error)
+fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint score_threshold, GError **error)
 {
   struct xyt_struct *pstruct;
   gint probe_len;
@@ -258,9 +258,9 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
       gint score;
       gstruct = g_ptr_array_index (template->prints, i);
       score = bozorth_to_gallery (probe_len, pstruct, gstruct);
-      fp_dbg ("score %d/%d", score, bz3_threshold);
+      fp_dbg ("score %d/%d", score, score_threshold);
 
-      if (score >= bz3_threshold)
+      if (score >= score_threshold)
         return FPI_MATCH_SUCCESS;
     }
 
@@ -271,7 +271,7 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
  * fpi_print_sigfm_match:
  * @template: A #FpPrint containing one or more prints
  * @print: A newly scanned #FpPrint to test
- * @bz3_threshold: The BZ3 match threshold
+ * @score_threshold: The BZ3 match threshold
  * @error: Return location for error
  *
  * Match the newly scanned @print (containing exactly one print) against the
@@ -284,7 +284,7 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
  */
 FpiMatchResult
 fpi_print_sigfm_match (FpPrint * template, FpPrint * print,
-                     gint bz3_threshold, GError ** error)
+                     gint score_threshold, GError ** error)
 {
   if (template->type != FPI_PRINT_SIGFM)
     {
@@ -305,8 +305,8 @@ fpi_print_sigfm_match (FpPrint * template, FpPrint * print,
                                              "error in sigfm_match_score");
           return FPI_MATCH_ERROR;
         }
-      fp_dbg ("sigfm score %d/%d", score, bz3_threshold);
-      if (score >= bz3_threshold)
+      fp_dbg ("sigfm score %d/%d", score, score_threshold);
+      if (score >= score_threshold)
         return FPI_MATCH_SUCCESS;
     }
   return FPI_MATCH_FAIL;

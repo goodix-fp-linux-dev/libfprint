@@ -46,11 +46,11 @@ gboolean fpi_print_add_from_image (FpPrint *print,
 
 FpiMatchResult fpi_print_bz3_match (FpPrint *temp,
                                     FpPrint *print,
-                                    gint     bz3_threshold,
+                                    gint     score_threshold,
                                     GError **error);
 
 FpiMatchResult fpi_print_sigfm_match (FpPrint * template, FpPrint * print,
-                                    gint bz3_threshold, GError * *error);
+                                    gint score_threshold, GError * *error);
 
 /* Helpers to encode metadata into user ID strings. */
 gchar * fpi_print_generate_user_id (FpPrint * print);
