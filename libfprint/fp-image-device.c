@@ -99,7 +99,6 @@ fp_image_device_start_capture_action (FpDevice * device)
   FpImageDevice * self = FP_IMAGE_DEVICE (device);
   FpImageDevicePrivate * priv = fp_image_device_get_instance_private (self);
   FpiDeviceAction action;
-  FpiPrintType print_type;
 
   /* There is just one action that we cannot support out
    * of the box, which is a capture without first waiting
