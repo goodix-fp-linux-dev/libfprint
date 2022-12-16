@@ -18,7 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "sigfm/sigfm.hpp"
+#include "sigfm/sigfm.h"
 #define FP_COMPONENT "image"
 
 #include "fpi-compat.h"

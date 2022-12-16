@@ -21,7 +21,7 @@
 #pragma once
 
 #include "fp-image.h"
-#include "sigfm/sigfm.hpp"
+#include "sigfm/sigfm.h"
 #include <config.h>
 
 /**
