@@ -1088,6 +1088,15 @@ fp_device_resume_finish (FpDevice     *device,
   return g_task_propagate_boolean (G_TASK (result), error);
 }
 
+static void
+enroll_data_free (FpEnrollData *data)
+{
+  if (data->enroll_progress_destroy)
+    data->enroll_progress_destroy (data->enroll_progress_data);
+  data->enroll_progress_data = NULL;
+  g_clear_object (&data->print);
+  g_free (data);
+}
 
 /**
  * fp_device_enroll:
@@ -1172,10 +1181,6 @@ fp_device_enroll (FpDevice           *device,
         }
     }
 
-  priv->current_action = FPI_DEVICE_ACTION_ENROLL;
-  priv->current_task = g_steal_pointer (&task);
-  setup_task_cancellable (device);
-
   fpi_device_update_temp (device, TRUE);
   if (priv->temp_current == FP_TEMPERATURE_HOT)
     {
@@ -1183,6 +1188,10 @@ fp_device_enroll (FpDevice           *device,
       fpi_device_update_temp (device, FALSE);
       return;
     }
+
+  priv->current_action = FPI_DEVICE_ACTION_ENROLL;
+  priv->current_task = g_steal_pointer (&task);
+  setup_task_cancellable (device);
 
   data = g_new0 (FpEnrollData, 1);
   data->print = g_object_ref_sink (template_print);
@@ -1215,6 +1224,23 @@ fp_device_enroll_finish (FpDevice     *device,
                          GError      **error)
 {
   return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+static void
+match_data_free (FpMatchData *data)
+{
+  g_clear_object (&data->print);
+  g_clear_object (&data->match);
+  g_clear_error (&data->error);
+
+  if (data->match_destroy)
+    data->match_destroy (data->match_data);
+  data->match_data = NULL;
+
+  g_clear_object (&data->enrolled_print);
+  g_clear_pointer (&data->gallery, g_ptr_array_unref);
+
+  g_free (data);
 }
 
 /**
@@ -1273,10 +1299,6 @@ fp_device_verify (FpDevice           *device,
       return;
     }
 
-  priv->current_action = FPI_DEVICE_ACTION_VERIFY;
-  priv->current_task = g_steal_pointer (&task);
-  setup_task_cancellable (device);
-
   fpi_device_update_temp (device, TRUE);
   if (priv->temp_current == FP_TEMPERATURE_HOT)
     {
@@ -1284,6 +1306,10 @@ fp_device_verify (FpDevice           *device,
       fpi_device_update_temp (device, FALSE);
       return;
     }
+
+  priv->current_action = FPI_DEVICE_ACTION_VERIFY;
+  priv->current_task = g_steal_pointer (&task);
+  setup_task_cancellable (device);
 
   data = g_new0 (FpMatchData, 1);
   data->enrolled_print = g_object_ref (enrolled_print);
@@ -1400,9 +1426,13 @@ fp_device_identify (FpDevice           *device,
       return;
     }
 
-  priv->current_action = FPI_DEVICE_ACTION_IDENTIFY;
-  priv->current_task = g_steal_pointer (&task);
-  setup_task_cancellable (device);
+  if (prints == NULL)
+    {
+      g_task_return_error (task,
+                           fpi_device_error_new_msg (FP_DEVICE_ERROR_DATA_INVALID,
+                                                     "Invalid gallery array"));
+      return;
+    }
 
   fpi_device_update_temp (device, TRUE);
   if (priv->temp_current == FP_TEMPERATURE_HOT)
@@ -1411,6 +1441,10 @@ fp_device_identify (FpDevice           *device,
       fpi_device_update_temp (device, FALSE);
       return;
     }
+
+  priv->current_action = FPI_DEVICE_ACTION_IDENTIFY;
+  priv->current_task = g_steal_pointer (&task);
+  setup_task_cancellable (device);
 
   data = g_new0 (FpMatchData, 1);
   /* We cannot store the gallery directly, because the ptr array may not own
@@ -1525,10 +1559,6 @@ fp_device_capture (FpDevice           *device,
       return;
     }
 
-  priv->current_action = FPI_DEVICE_ACTION_CAPTURE;
-  priv->current_task = g_steal_pointer (&task);
-  setup_task_cancellable (device);
-
   fpi_device_update_temp (device, TRUE);
   if (priv->temp_current == FP_TEMPERATURE_HOT)
     {
@@ -1536,6 +1566,10 @@ fp_device_capture (FpDevice           *device,
       fpi_device_update_temp (device, FALSE);
       return;
     }
+
+  priv->current_action = FPI_DEVICE_ACTION_CAPTURE;
+  priv->current_task = g_steal_pointer (&task);
+  setup_task_cancellable (device);
 
   priv->wait_for_finger = wait_for_finger;
 

@@ -1,6 +1,18 @@
 This file lists notable changes in each release. For the full history of all
 changes, see ChangeLog.
 
+2022-10-13: v1.94.5 release
+
+Highlights:
+ * New driver: fpcmoc, supporting various FPC MOC Fingerprint Sensors
+ * goodixmoc: New PIDs 0x6014, 0x6094, 0x631C, 0x634C, 0x6384, 0x659A.
+ * goodixmoc: Support resetting device on firmware failure due to corrupted DB.
+ * elanmoc: New PIDs 0x0c88, 0x0c8c, 0x0c8d.
+ * synaptics: New PID 0x0104.
+ * upektc: New PID 0x2017.
+ * Fixed various memory leaks
+ * More tests
+
 2022-05-24: v1.94.4 release
 
 Highlights:

@@ -357,7 +357,7 @@ elan_cmd_cb (FpiUsbTransfer *transfer, FpDevice *dev,
   if (transfer->endpoint & FPI_USB_ENDPOINT_IN)
     {
       /* just finished receiving */
-      self->last_read = g_memdup (transfer->buffer, transfer->actual_length);
+      self->last_read = g_memdup2 (transfer->buffer, transfer->actual_length);
       elan_cmd_done (ssm);
     }
   else

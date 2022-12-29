@@ -1,12 +1,12 @@
 {
     "app-id": "org.freedesktop.libfprint.Demo",
     "runtime": "org.gnome.Platform",
-    "runtime-version": "3.36",
+    "runtime-version": "42",
     "sdk": "org.gnome.Sdk",
     "command": "gtk-libfprint-test",
     "finish-args": [
         /* X11 + XShm access */
-        "--share=ipc", "--socket=x11",
+        "--share=ipc", "--socket=fallback-x11",
         /* Wayland access */
         "--socket=wayland",
         /* OpenGL access */
@@ -18,7 +18,7 @@
     "modules": [
         {
             "name": "libusb",
-            "config-opts": [ "--disable-static", "--disable-udev" ],
+            "config-opts": [ "--disable-static" ],
             "cleanup": [
                 "/lib/*.la",
                 "/lib/pkgconfig",
@@ -26,13 +26,13 @@
             ],
             "sources": [
                 {
-                    "type": "archive",
-                    "url": "https://github.com/libusb/libusb/archive/v1.0.22.tar.gz",
-                    "sha256": "3500f7b182750cd9ccf9be8b1df998f83df56a39ab264976bdb3307773e16f48"
+                   "type": "archive",
+                   "url": "https://github.com/libusb/libusb/releases/download/v1.0.26/libusb-1.0.26.tar.bz2",
+                   "sha256": "12ce7a61fc9854d1d2a1ffe095f7b5fac19ddba095c259e6067a46500381b5a5"
                 }
             ],
             "post-install": [
-                "install -Dm644 COPYING /app/share/licenses/libgusb/COPYING"
+                "install -Dm644 COPYING /app/share/licenses/libusb/COPYING"
             ]
         },
         {
@@ -62,12 +62,11 @@
         {
             "name": "libfprint",
             "buildsystem": "meson",
-            "config-opts": [ "-Dudev_hwdb=disabled", "-Dudev_rules=disabled", "-Dx11-examples=false", "-Dgtk-examples=true", "-Ddrivers=all" ],
+            "config-opts": [ "-Dudev_hwdb=disabled", "-Dudev_rules=disabled", "-Dgtk-examples=true", "-Ddrivers=all" ],
             "sources": [
                 {
                     "type": "git",
-                    "url": "https://gitlab.freedesktop.org/libfprint/libfprint.git",
-                    "branch": "wip/benzea/v2"
+                    "url": "https://gitlab.freedesktop.org/libfprint/libfprint.git"
                 }
             ]
         }

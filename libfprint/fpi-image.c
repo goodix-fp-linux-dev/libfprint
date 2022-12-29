@@ -24,8 +24,9 @@
 #include "fpi-log.h"
 
 #include <nbis.h>
+#include <config.h>
 
-#if HAVE_PIXMAN
+#ifdef HAVE_PIXMAN
 #include <pixman.h>
 #endif
 
@@ -107,12 +108,12 @@ fpi_mean_sq_diff_norm (const guint8 *buf1,
   return res / size;
 }
 
-#if HAVE_PIXMAN
 FpImage *
 fpi_image_resize (FpImage *orig_img,
                   guint    w_factor,
                   guint    h_factor)
 {
+#ifdef HAVE_PIXMAN
   int new_width = orig_img->width * w_factor;
   int new_height = orig_img->height * h_factor;
   pixman_image_t *orig, *resized;
@@ -145,5 +146,9 @@ fpi_image_resize (FpImage *orig_img,
   pixman_image_unref (resized);
 
   return newimg;
-}
+#else
+  fp_err ("Libfprint compiled without pixman support, impossible to resize");
+
+  return g_object_ref (orig_img);
 #endif
+}

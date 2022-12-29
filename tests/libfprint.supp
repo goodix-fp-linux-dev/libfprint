@@ -1,0 +1,19 @@
+{
+   <ignore_dl_open_leaks>
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:dlopen*
+}
+
+{
+   <ignore-gusb-get-string-desc-uninitialized-memory>
+   Memcheck:Param
+   socketcall.sendto(msg)
+   ...
+   fun:send
+   ...
+   fun:g_usb_device_get_string_descriptor
+   ...
+}
+

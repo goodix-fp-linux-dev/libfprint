@@ -1,8 +1,14 @@
 #!/usr/bin/python3
 
+import traceback
+import sys
 import gi
+
 gi.require_version('FPrint', '2.0')
 from gi.repository import FPrint, GLib
+
+# Exit with error on any exception, included those happening in async callbacks
+sys.excepthook = lambda *args: (traceback.print_exception(*args), sys.exit(1))
 
 ctx = GLib.main_context_default()
 
@@ -31,7 +37,7 @@ d.clear_storage_sync()
 template = FPrint.Print.new(d)
 
 def enroll_progress(*args):
-    assert d.get_finger_status() == FPrint.FingerStatusFlags.NEEDED
+    assert d.get_finger_status() & FPrint.FingerStatusFlags.NEEDED
     print('enroll progress: ' + str(args))
 
 def identify_done(dev, res):

@@ -21,9 +21,11 @@
 #include "sigfm/sigfm.hpp"
 #define FP_COMPONENT "image"
 
+#include "fpi-compat.h"
 #include "fpi-image.h"
 #include "fpi-log.h"
 
+#include <config.h>
 #include <nbis.h>
 
 /**
@@ -357,7 +359,7 @@ fp_image_detect_minutiae_thread_func (GTask        *task,
 
   data->flags &= ~(FPI_IMAGE_H_FLIPPED | FPI_IMAGE_V_FLIPPED | FPI_IMAGE_COLORS_INVERTED);
 
-  lfsparms = g_memdup (&g_lfsparms_V2, sizeof (LFSPARMS));
+  lfsparms = g_memdup2 (&g_lfsparms_V2, sizeof (LFSPARMS));
   lfsparms->remove_perimeter_pts = data->flags & FPI_IMAGE_PARTIAL ? TRUE : FALSE;
 
   timer = g_timer_new ();

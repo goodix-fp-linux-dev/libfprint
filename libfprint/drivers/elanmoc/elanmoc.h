@@ -188,6 +188,7 @@ struct _FpiDeviceElanmoc
   unsigned char   y_trace;
   int             num_frames;
   int             curr_enrolled;
+  int             max_moc_enroll_time;
   int             cancel_result;
   int             cmd_retry_cnt;
   int             list_index;

@@ -79,8 +79,6 @@ gint fpi_mean_sq_diff_norm (const guint8 *buf1,
                             const guint8 *buf2,
                             gint          size);
 
-#if HAVE_PIXMAN
 FpImage *fpi_image_resize (FpImage *orig,
                            guint    w_factor,
                            guint    h_factor);
-#endif

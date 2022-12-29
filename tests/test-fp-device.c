@@ -232,6 +232,36 @@ test_device_has_storage (void)
   G_GNUC_END_IGNORE_DEPRECATIONS
 }
 
+static void
+test_device_identify_cancelled (void)
+{
+  g_autoptr(GCancellable) cancellable = NULL;
+  g_autoptr(GPtrArray) prints = NULL;
+  g_autoptr(GError) error = NULL;
+  g_autoptr(FptContext) tctx = fpt_context_new_with_virtual_device (FPT_VIRTUAL_DEVICE_IMAGE);
+
+  fp_device_open_sync (tctx->device, NULL, NULL);
+
+  prints = g_ptr_array_new ();
+  cancellable = g_cancellable_new ();
+  g_cancellable_cancel (cancellable);
+  g_assert_false (fp_device_identify_sync (tctx->device, prints, cancellable,
+                                           NULL, NULL, NULL, NULL, &error));
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_CANCELLED);
+}
+
+static void
+test_device_identify_null_prints (void)
+{
+  g_autoptr(GError) error = NULL;
+  g_autoptr(FptContext) tctx = fpt_context_new_with_virtual_device (FPT_VIRTUAL_DEVICE_IMAGE);
+
+  fp_device_open_sync (tctx->device, NULL, NULL);
+  g_assert_false (fp_device_identify_sync (tctx->device, NULL, NULL, NULL,
+                                           NULL, NULL, NULL, &error));
+  g_assert_error (error, FP_DEVICE_ERROR, FP_DEVICE_ERROR_DATA_INVALID);
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -252,6 +282,8 @@ main (int argc, char *argv[])
   g_test_add_func ("/device/sync/supports_identify", test_device_supports_identify);
   g_test_add_func ("/device/sync/supports_capture", test_device_supports_capture);
   g_test_add_func ("/device/sync/has_storage", test_device_has_storage);
+  g_test_add_func ("/device/sync/identify/cancelled", test_device_identify_cancelled);
+  g_test_add_func ("/device/sync/identify/null-prints", test_device_identify_null_prints);
 
   return g_test_run ();
 }

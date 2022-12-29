@@ -1359,12 +1359,18 @@ gx_fp_probe (FpDevice *device)
     {
     case 0x6496:
     case 0x60A2:
+    case 0x6014:
+    case 0x6094:
     case 0x609C:
+    case 0x631C:
+    case 0x634C:
+    case 0x6384:
     case 0x639C:
     case 0x63AC:
     case 0x63BC:
     case 0x63CC:
     case 0x6A94:
+    case 0x659A:
       self->max_enroll_stage = 12;
       break;
 
@@ -1595,8 +1601,13 @@ fpi_device_goodixmoc_init (FpiDeviceGoodixMoc *self)
 
 static const FpIdEntry id_table[] = {
   { .vid = 0x27c6,  .pid = 0x5840,  },
+  { .vid = 0x27c6,  .pid = 0x6014,  },
+  { .vid = 0x27c6,  .pid = 0x6094,  },
   { .vid = 0x27c6,  .pid = 0x609C,  },
   { .vid = 0x27c6,  .pid = 0x60A2,  },
+  { .vid = 0x27c6,  .pid = 0x631C,  },
+  { .vid = 0x27c6,  .pid = 0x634C,  },
+  { .vid = 0x27c6,  .pid = 0x6384,  },
   { .vid = 0x27c6,  .pid = 0x639C,  },
   { .vid = 0x27c6,  .pid = 0x63AC,  },
   { .vid = 0x27c6,  .pid = 0x63BC,  },
@@ -1606,6 +1617,7 @@ static const FpIdEntry id_table[] = {
   { .vid = 0x27c6,  .pid = 0x658C,  },
   { .vid = 0x27c6,  .pid = 0x6592,  },
   { .vid = 0x27c6,  .pid = 0x6594,  },
+  { .vid = 0x27c6,  .pid = 0x659A,  },
   { .vid = 0x27c6,  .pid = 0x659C,  },
   { .vid = 0x27c6,  .pid = 0x6A94,  },
   { .vid = 0,  .pid = 0,  .driver_data = 0 },   /* terminating entry */

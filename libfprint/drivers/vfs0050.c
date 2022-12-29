@@ -581,7 +581,7 @@ activate_ssm (FpiSsm *ssm, FpDevice *dev)
             /* Initialize fingerprint buffer */
             g_free (self->lines_buffer);
             self->memory = VFS_USB_BUFFER_SIZE;
-            self->lines_buffer = g_malloc (self->memory);
+            self->lines_buffer = g_malloc0 (self->memory);
             self->bytes = 0;
 
             /* Finger is on the scanner */
@@ -589,12 +589,15 @@ activate_ssm (FpiSsm *ssm, FpDevice *dev)
           }
 
         /* Increase buffer size while it's insufficient */
-        while (self->bytes + VFS_USB_BUFFER_SIZE > self->memory)
+        while (self->memory < self->bytes + VFS_USB_BUFFER_SIZE)
           {
-            self->memory <<= 1;
+            int pre_memory = self->memory;
+            self->memory += VFS_USB_BUFFER_SIZE;
             self->lines_buffer =
               (struct vfs_line *) g_realloc (self->lines_buffer,
                                              self->memory);
+            memset ((guint8 *) self->lines_buffer + pre_memory, 0,
+                    VFS_USB_BUFFER_SIZE);
           }
 
         /* Receive chunk of data */

@@ -431,6 +431,7 @@ dev_deinit (FpImageDevice *dev)
 
 static const FpIdEntry id_table[] = {
   { .vid = 0x0483,  .pid = 0x2015, .driver_data = UPEKTC_2015 },
+  { .vid = 0x0483,  .pid = 0x2017, .driver_data = UPEKTC_2015 },
   { .vid = 0x147e,  .pid = 0x3001, .driver_data = UPEKTC_3001 },
   { .vid = 0,  .pid = 0,  .driver_data = 0 },
 };

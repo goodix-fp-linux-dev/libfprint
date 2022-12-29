@@ -1,54 +1,86 @@
-# libfprint
 
-libfprint is part of the fprint project:
-https://fprint.freedesktop.org/
+
+<div align="center">
+
+# LibFPrint
+
+*LibFPrint is part of the **[FPrint][Website]** project.*
+
+<br/>
+
+[![Button Website]][Website]
+[![Button Documentation]][Documentation]
+
+[![Button Supported]][Supported]
+[![Button Unsupported]][Unsupported]
+
+[![Button Contribute]][Contribute]
+[![Button Contributors]][Contributors]
+
+</div>
 
 ## History
 
-libfprint was originally developed as part of an academic project at the
-University of Manchester with the aim of hiding differences between different
-consumer fingerprint scanners and providing a single uniform API to application
-developers. The ultimate goal of the fprint project is to make fingerprint
-scanners widely and easily usable under common Linux environments.
+**LibFPrint** was originally developed as part of an
+academic project at the **[University Of Manchester]**.
 
-The academic university project runs off a codebase maintained separately
-from this one, although I try to keep them as similar as possible (I'm not
-hiding anything in the academic branch, it's just the open source release
-contains some commits excluded from the academic project).
+It aimed to hide the differences between consumer
+fingerprint scanners and provide a single uniform
+API to application developers.
+
+## Goal
+
+The ultimate goal of the **FPrint** project is to make
+fingerprint scanners widely and easily usable under
+common Linux environments.
 
 ## License
 
-THE UNIVERSITY OF MANCHESTER DOES NOT ENDORSE THIS THIS SOFTWARE RELEASE AND
-IS IN NO WAY RESPONSIBLE FOR THE CODE CONTAINED WITHIN, OR ANY DAMAGES CAUSED
-BY USING OR DISTRIBUTING THE SOFTWARE. Development does not happen on
-university computers and the project is not hosted at the university either.
+`Section 6` of the license states that for compiled works that use
+this library, such works must include **LibFPrint** copyright notices
+alongside the copyright notices for the other parts of the work.
 
-For more information on libfprint, supported devices, API documentation, etc.,
-see the homepage:
-https://fprint.freedesktop.org/
+**LibFPrint** includes code from **NIST's** **[NBIS]** software distribution.
 
-libfprint is licensed under the GNU LGPL version 2.1. See the COPYING file
-for the license text.
+We include **Bozorth3** from the **[US Export Controlled]**
+distribution, which we have determined to be fine
+being shipped in an open source project.
 
-Section 6 of the license states that for compiled works that use this
-library, such works must include libfprint copyright notices alongside the
-copyright notices for the other parts of the work. We have attempted to
-make this process slightly easier for you by grouping these all in one place:
-the AUTHORS file.
+<br/>
 
-libfprint includes code from NIST's NBIS software distribution:
-http://fingerprint.nist.gov/NBIS/index.html
-We include bozorth3 from the US export controlled distribution. We have
-determined that it is fine to ship bozorth3 in an open source project,
-see https://fprint.freedesktop.org/us-export-control.html
+<div align="right">
 
-## Historical links
+[![Badge License]][License]
 
-Older versions of libfprint are available at:
-https://sourceforge.net/projects/fprint/files/
+</div>
 
-Historical mailing-list archives:
-http://www.reactivated.net/fprint_list_archives/
 
-Historical website:
-http://web.archive.org/web/*/https://www.freedesktop.org/wiki/Software/fprint/
+<!----------------------------------------------------------------------------->
+
+[Documentation]: https://fprint.freedesktop.org/libfprint-dev/
+[Contributors]: https://gitlab.freedesktop.org/libfprint/libfprint/-/graphs/master
+[Unsupported]: https://gitlab.freedesktop.org/libfprint/wiki/-/wikis/Unsupported-Devices
+[Supported]: https://fprint.freedesktop.org/supported-devices.html
+[Website]: https://fprint.freedesktop.org/
+
+[Contribute]: ./HACKING.md
+[License]: ./COPYING
+
+[University Of Manchester]: https://www.manchester.ac.uk/
+[US Export Controlled]: https://fprint.freedesktop.org/us-export-control.html
+[NBIS]: http://fingerprint.nist.gov/NBIS/index.html
+
+
+<!---------------------------------[ Badges ]---------------------------------->
+
+[Badge License]: https://img.shields.io/badge/License-LGPL2.1-015d93.svg?style=for-the-badge&labelColor=blue
+
+
+<!---------------------------------[ Buttons ]--------------------------------->
+
+[Button Documentation]: https://img.shields.io/badge/Documentation-04ACE6?style=for-the-badge&logoColor=white&logo=BookStack
+[Button Contributors]: https://img.shields.io/badge/Contributors-FF4F8B?style=for-the-badge&logoColor=white&logo=ActiGraph
+[Button Unsupported]: https://img.shields.io/badge/Unsupported_Devices-EF2D5E?style=for-the-badge&logoColor=white&logo=AdBlock
+[Button Contribute]: https://img.shields.io/badge/Contribute-66459B?style=for-the-badge&logoColor=white&logo=Git
+[Button Supported]: https://img.shields.io/badge/Supported_Devices-428813?style=for-the-badge&logoColor=white&logo=AdGuard
+[Button Website]: https://img.shields.io/badge/Homepage-3B80AE?style=for-the-badge&logoColor=white&logo=freedesktopDotOrg

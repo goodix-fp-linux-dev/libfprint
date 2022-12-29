@@ -21,6 +21,9 @@ except Exception as e:
 
 FPrint = None
 
+# Exit with error on any exception, included those happening in async callbacks
+sys.excepthook = lambda *args: (traceback.print_exception(*args), sys.exit(1))
+
 def load_image(img):
     png = cairo.ImageSurface.create_from_png(img)
 
@@ -234,7 +237,8 @@ class VirtualImage(unittest.TestCase):
         self.assertEqual(self.dev.get_finger_status(), FPrint.FingerStatusFlags.NONE)
         self.assertEqual(self._enrolled.props.driver, self.dev.get_driver())
         self.assertEqual(self._enrolled.props.device_id, self.dev.get_device_id())
-        self.assertEqual(self._enrolled.props.device_stored, self.dev.has_storage())
+        self.assertEqual(self._enrolled.props.device_stored,
+                         bool(self.dev.get_features() & FPrint.DeviceFeature.STORAGE))
         self.assertIsNone(self._enrolled.get_image())
 
         return self._enrolled
