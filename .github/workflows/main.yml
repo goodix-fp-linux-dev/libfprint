@@ -1,0 +1,66 @@
+name: Build Linux packages
+on:
+  workflow_dispatch:
+  push:
+    branches:
+     - master
+     - goodixtls
+     - sigfm
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: nicksnell/action-reset-repo@master
+        with:
+          reset_branch: buildpackage
+          base_branch: master
+          github_token: ${{ github.token }}
+      - name: Merge goodixtls -> buildpackage
+        uses: devmasx/merge-branch@master
+        with:
+          type: now
+          from_branch: goodixtls
+          target_branch: buildpackage
+          github_token: ${{ github.token }}
+      - name: Merge sigfm -> buildpackage
+        uses: devmasx/merge-branch@master
+        with:
+          type: now
+          from_branch: sigfm
+          target_branch: buildpackage
+          github_token: ${{ github.token }}
+      - name: Chown user
+        run: |
+          sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+      - uses: actions/checkout@v3
+        with:
+          ref: buildpackage
+      - uses: actions/setup-python@v1
+      - name: Install dependencies
+        run: sudo apt-get install -y libgusb-dev libgirepository1.0-dev libnss3-dev libgudev-1.0-dev gtk-doc-tools libopencv-dev doctest-dev
+      - uses: BSFishy/meson-build@v1.0.3
+        with:
+          action: build
+          setup-options: --prefix /usr/ --buildtype=release
+          options: --verbose     
+          meson-version: 0.63.3
+          ninja-version: 1.10.2
+      - name: Install nFPM
+        run: echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list && sudo apt update && sudo apt install nfpm
+      - name: Prepare nFPM config
+        run: cd /home/runner/work/libfprint/libfprint && cp nfpm_sample.yaml nfpm.yaml && sed -i "s/COMMITID/$(git rev-parse --short HEAD)/g" nfpm.yaml && mkdir ./output
+      - name: Generating DEB package
+        run: nfpm pkg --packager deb --target ./output/
+      - name: Generating RPM package
+        run: nfpm pkg --packager rpm --target ./output/
+      - name: Generating ArchLinux package
+        run: nfpm pkg --packager archlinux --target ./output/
+      - uses: actions/upload-artifact@v3
+        with:
+          name: meson-build-artifacts
+          path: /home/runner/work/libfprint/libfprint/build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: deb-rpm-arch-packages
+          path: /home/runner/work/libfprint/libfprint/output
