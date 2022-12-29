@@ -19,23 +19,26 @@ devices = c.get_devices()
 d = devices[0]
 del devices
 
-assert d.get_driver() == "elanmoc"
+assert d.get_driver() == "fpcmoc"
 assert not d.has_feature(FPrint.DeviceFeature.CAPTURE)
 assert d.has_feature(FPrint.DeviceFeature.IDENTIFY)
 assert d.has_feature(FPrint.DeviceFeature.VERIFY)
-assert not d.has_feature(FPrint.DeviceFeature.DUPLICATES_CHECK)
+assert d.has_feature(FPrint.DeviceFeature.DUPLICATES_CHECK)
 assert d.has_feature(FPrint.DeviceFeature.STORAGE)
 assert d.has_feature(FPrint.DeviceFeature.STORAGE_LIST)
 assert d.has_feature(FPrint.DeviceFeature.STORAGE_DELETE)
-assert not d.has_feature(FPrint.DeviceFeature.STORAGE_CLEAR)
+assert d.has_feature(FPrint.DeviceFeature.STORAGE_CLEAR)
 
 d.open_sync()
+
+print("Clear")
+d.clear_storage_sync()
+print("Clear done")
 
 template = FPrint.Print.new(d)
 
 def enroll_progress(*args):
-    #assert d.get_finger_status() == FPrint.FingerStatusFlags.NEEDED
-    print("finger status: ", d.get_finger_status())
+    assert d.get_finger_status() == FPrint.FingerStatusFlags.NEEDED
     print('enroll progress: ' + str(args))
 
 def identify_done(dev, res):

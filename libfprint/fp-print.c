@@ -340,7 +340,7 @@ fp_print_init (FpPrint *self)
  * create a new print, fill in the relevant metadata, and then start
  * enrollment.
  *
- * Returns: (transfer floating): A newyl created #FpPrint
+ * Returns: (transfer floating): A newly created #FpPrint
  */
 FpPrint *
 fp_print_new (FpDevice *device)

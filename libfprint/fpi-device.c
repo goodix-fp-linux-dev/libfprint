@@ -522,33 +522,6 @@ fpi_device_get_driver_data (FpDevice *device)
   return priv->driver_data;
 }
 
-void
-enroll_data_free (FpEnrollData *data)
-{
-  if (data->enroll_progress_destroy)
-    data->enroll_progress_destroy (data->enroll_progress_data);
-  data->enroll_progress_data = NULL;
-  g_clear_object (&data->print);
-  g_free (data);
-}
-
-void
-match_data_free (FpMatchData *data)
-{
-  g_clear_object (&data->print);
-  g_clear_object (&data->match);
-  g_clear_error (&data->error);
-
-  if (data->match_destroy)
-    data->match_destroy (data->match_data);
-  data->match_data = NULL;
-
-  g_clear_object (&data->enrolled_print);
-  g_clear_pointer (&data->gallery, g_ptr_array_unref);
-
-  g_free (data);
-}
-
 /**
  * fpi_device_get_enroll_data:
  * @device: The #FpDevice
@@ -622,7 +595,14 @@ fpi_device_get_verify_data (FpDevice *device,
  * @device: The #FpDevice
  * @prints: (out) (transfer none) (element-type FpPrint): The gallery of prints
  *
- * Get data for identify.
+ * Get prints gallery for identification.
+ *
+ * The @prints array is always non-%NULL and may contain a list of #FpPrint's
+ * that the device should match against.
+ *
+ * Note that @prints can be an empty array, in such case the device is expected
+ * to report the scanned print matching the one in its internal storage, if any.
+ *
  */
 void
 fpi_device_get_identify_data (FpDevice   *device,
@@ -1312,12 +1292,14 @@ fpi_device_enroll_complete (FpDevice *device, FpPrint *print, GError *error)
  * @device: The #FpDevice
  * @error: A #GError if result is %FPI_MATCH_ERROR
  *
- * Finish an ongoing verify operation. The returned print should be
- * representing the new scan and not the one passed for verification.
+ * Finish an ongoing verify operation.
  *
  * Note that @error should only be set for actual errors. In the case
  * of retry errors, report these using fpi_device_verify_report()
  * and then call this function without any error argument.
+ *
+ * If @error is not set, we expect that a result (and print, in case)
+ * have been already reported via fpi_device_verify_report().
  */
 void
 fpi_device_verify_complete (FpDevice *device,
@@ -1375,9 +1357,14 @@ fpi_device_verify_complete (FpDevice *device,
  * @device: The #FpDevice
  * @error: The #GError or %NULL on success
  *
- * Finish an ongoing identify operation. The match that was identified is
- * returned in @match. The @print parameter returns the newly created scan
- * that was used for matching.
+ * Finish an ongoing identify operation.
+ *
+ * Note that @error should only be set for actual errors. In the case
+ * of retry errors, report these using fpi_device_identify_report()
+ * and then call this function without any error argument.
+ *
+ * If @error is not set, we expect that a match and / or a print have been
+ * already reported via fpi_device_identify_report()
  */
 void
 fpi_device_identify_complete (FpDevice *device,
@@ -1596,11 +1583,13 @@ update_attr (const char *attr, const char *value)
 static void
 complete_suspend_resume_task (FpDevice *device)
 {
+  g_autoptr(GTask) task = NULL;
   FpDevicePrivate *priv = fp_device_get_instance_private (device);
 
   g_assert (priv->suspend_resume_task);
+  task = g_steal_pointer (&priv->suspend_resume_task);
 
-  g_task_return_boolean (g_steal_pointer (&priv->suspend_resume_task), TRUE);
+  g_task_return_boolean (task, TRUE);
 }
 
 void
@@ -1704,9 +1693,9 @@ fpi_device_configure_wakeup (FpDevice *device, gboolean enabled)
     case FP_DEVICE_TYPE_USB:
       {
         g_autoptr(GString) ports = NULL;
-        GUsbDevice *dev, *parent;
+        g_autoptr(GUsbDevice) dev = NULL;
         const char *wakeup_command = enabled ? "enabled" : "disabled";
-        guint8 bus, port;
+        guint8 bus;
         g_autofree gchar *sysfs_wakeup = NULL;
         g_autofree gchar *sysfs_persist = NULL;
         int res;
@@ -1715,12 +1704,20 @@ fpi_device_configure_wakeup (FpDevice *device, gboolean enabled)
         bus = g_usb_device_get_bus (priv->usb_device);
 
         /* Walk up, skipping the root hub. */
-        dev = priv->usb_device;
-        while ((parent = g_usb_device_get_parent (dev)))
+        g_set_object (&dev, priv->usb_device);
+        while (TRUE)
           {
+            g_autoptr(GUsbDevice) parent = g_usb_device_get_parent (dev);
+            g_autofree gchar *port_str = NULL;
+            guint8 port;
+
+            if (!parent)
+              break;
+
             port = g_usb_device_get_port_number (dev);
-            g_string_prepend (ports, g_strdup_printf ("%d.", port));
-            dev = parent;
+            port_str = g_strdup_printf ("%d.", port);
+            g_string_prepend (ports, port_str);
+            g_set_object (&dev, parent);
           }
         g_string_set_size (ports, ports->len - 1);
 
@@ -1757,6 +1754,7 @@ fpi_device_configure_wakeup (FpDevice *device, gboolean enabled)
 static void
 fpi_device_suspend_completed (FpDevice *device)
 {
+  g_autoptr(GTask) task = NULL;
   FpDevicePrivate *priv = fp_device_get_instance_private (device);
 
   /* We have an ongoing operation, allow the device to wake up the machine. */
@@ -1766,11 +1764,12 @@ fpi_device_suspend_completed (FpDevice *device)
   if (priv->critical_section)
     g_warning ("Driver was in a critical section at suspend time. It likely deadlocked!");
 
+  task = g_steal_pointer (&priv->suspend_resume_task);
+
   if (priv->suspend_error)
-    g_task_return_error (g_steal_pointer (&priv->suspend_resume_task),
-                         g_steal_pointer (&priv->suspend_error));
+    g_task_return_error (task, g_steal_pointer (&priv->suspend_error));
   else
-    g_task_return_boolean (g_steal_pointer (&priv->suspend_resume_task), TRUE);
+    g_task_return_boolean (task, TRUE);
 }
 
 /**
@@ -1798,11 +1797,12 @@ fpi_device_suspend_complete (FpDevice *device,
   g_return_if_fail (priv->suspend_resume_task);
   g_return_if_fail (priv->suspend_error == NULL);
 
-  priv->suspend_error = error;
+  priv->suspend_error = g_steal_pointer (&error);
   priv->is_suspended = TRUE;
 
   /* If there is no error, we have no running task, return immediately. */
-  if (error == NULL || !priv->current_task || g_task_get_completed (priv->current_task))
+  if (!priv->suspend_error || !priv->current_task ||
+      g_task_get_completed (priv->current_task))
     {
       fpi_device_suspend_completed (device);
       return;
@@ -1834,6 +1834,7 @@ void
 fpi_device_resume_complete (FpDevice *device,
                             GError   *error)
 {
+  g_autoptr(GTask) task = NULL;
   FpDevicePrivate *priv = fp_device_get_instance_private (device);
 
   g_return_if_fail (FP_IS_DEVICE (device));
@@ -1842,10 +1843,12 @@ fpi_device_resume_complete (FpDevice *device,
   priv->is_suspended = FALSE;
   fpi_device_configure_wakeup (device, FALSE);
 
+  task = g_steal_pointer (&priv->suspend_resume_task);
+
   if (error)
-    g_task_return_error (g_steal_pointer (&priv->suspend_resume_task), error);
+    g_task_return_error (task, error);
   else
-    g_task_return_boolean (g_steal_pointer (&priv->suspend_resume_task), TRUE);
+    g_task_return_boolean (task, TRUE);
 }
 
 /**
@@ -2002,12 +2005,26 @@ fpi_device_verify_report (FpDevice      *device,
  * fpi_device_identify_report:
  * @device: The #FpDevice
  * @match: (transfer none): The #FpPrint from the gallery that matched
- * @print: (transfer floating): The scanned #FpPrint
- * @error: A #GError if result is %FPI_MATCH_ERROR
+ * @print: (transfer floating): The scanned #FpPrint, set in the absence
+ *   of an error.
+ * @error: A #GError of %FP_DEVICE_RETRY type if @match and @print are unset.
  *
- * Report the result of a identify operation. Note that the passed @error must be
- * a retry error with the %FP_DEVICE_RETRY domain. For all other error cases,
- * the error should passed to fpi_device_identify_complete().
+ * Report the results of an identify operation.
+ *
+ * In case of successful identification @match is expected to be set to a
+ * #FpPrint that matches one from the provided gallery, while @print
+ * represents the scanned print and will be different.
+ *
+ * If there are no errors, it's expected that the device always reports the
+ * recognized @print even if there is no @match with the provided gallery (that
+ * can be potentially empty). This is required for application logic further
+ * up in the stack, such as for enroll-duplicate checking. @print needs to be
+ * sufficiently filled to do a comparison.
+ *
+ * In case of error, both @match and @print are expected to be %NULL.
+ * Note that the passed @error must be a retry error from the %FP_DEVICE_RETRY
+ * domain. For all other error cases, the error should passed to
+ * fpi_device_identify_complete().
  */
 void
 fpi_device_identify_report (FpDevice *device,

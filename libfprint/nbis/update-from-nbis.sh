@@ -198,3 +198,6 @@ patch -p0 < fix-scan-build-reports.patch
 
 # Add pass to remove perimeter points
 patch -p0 < remove-perimeter-pts.patch
+
+# Fix build on musl by dropping unnecessary redeclaration of stderr
+patch -p0 < fix-musl-build.patch

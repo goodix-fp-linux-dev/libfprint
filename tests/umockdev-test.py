@@ -14,7 +14,7 @@ if len(sys.argv) != 2:
 # Check that umockdev is available
 try:
     umockdev_version = subprocess.check_output(['umockdev-run', '--version'])
-    version = tuple(int(_) for _ in umockdev_version.split(b'.'))
+    version = tuple(int(_) for _ in umockdev_version.split(b'.')[:3])
     if version < (0, 13, 2):
         print('umockdev is too old for test to be reliable, expect random failures!')
         print('Please update umockdev to at least 0.13.2.')

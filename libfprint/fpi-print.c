@@ -58,7 +58,7 @@ fpi_print_add_print (FpPrint *print, FpPrint *add)
   g_assert (add->prints->len == 1);
   void * to_add =
     print->type == FPI_PRINT_NBIS ?
-    g_memdup (add->prints->pdata[0], sizeof (struct xyt_struct)) :
+    g_memdup2 (add->prints->pdata[0], sizeof (struct xyt_struct)) :
     (void *) sigfm_copy_info (add->prints->pdata[0]);
   g_ptr_array_add (print->prints, to_add);
 }

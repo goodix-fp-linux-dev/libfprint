@@ -22,6 +22,9 @@ except Exception as e:
 
 FPrint = None
 
+# Exit with error on any exception, included those happening in async callbacks
+sys.excepthook = lambda *args: (traceback.print_exception(*args), sys.exit(1))
+
 ctx = GLib.main_context_default()
 
 
@@ -235,10 +238,11 @@ class VirtualDeviceBase(unittest.TestCase):
         self.assertEqual(self.dev.get_finger_status(), FPrint.FingerStatusFlags.NONE)
 
         self.assertEqual(self._enrolled.get_device_stored(),
-            self.dev.has_storage())
+            bool(self.dev.get_features() & FPrint.DeviceFeature.STORAGE))
         self.assertEqual(self._enrolled.props.driver, self.dev.get_driver())
         self.assertEqual(self._enrolled.props.device_id, self.dev.get_device_id())
-        self.assertEqual(self._enrolled.props.device_stored, self.dev.has_storage())
+        self.assertEqual(self._enrolled.props.device_stored,
+                         bool(self.dev.get_features() & FPrint.DeviceFeature.STORAGE))
         self.assertEqual(self._enrolled.props.fpi_data.unpack(), nick)
         self.assertIsNone(self._enrolled.props.image)
 
@@ -322,7 +326,8 @@ class VirtualDeviceBase(unittest.TestCase):
             else:
                 self.assertFalse(match)
 
-        if isinstance(scan_nick, str) and not self.dev.has_storage():
+        if (isinstance(scan_nick, str) and not
+            self.dev.get_features() & FPrint.DeviceFeature.STORAGE):
             self.assertEqual(self._verify_fp.props.fpi_data.get_string(), scan_nick)
 
 
@@ -592,7 +597,7 @@ class VirtualDevice(VirtualDeviceBase):
         self.send_command('SCAN', 'another-id')
         verify_match, verify_fp = self.dev.verify_sync(enrolled)
         self.assertFalse(verify_match)
-        if self.dev.has_storage():
+        if self.dev.get_features() & FPrint.DeviceFeature.STORAGE:
             self.assertIsNone(verify_fp)
         else:
             self.assertFalse(verify_fp.equal(enrolled))

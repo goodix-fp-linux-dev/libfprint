@@ -526,8 +526,8 @@ dev_verify (FpDevice *dev)
 
   if (scan_id)
     {
+      g_autoptr(FpPrint) new_scan = NULL;
       GVariant *data = NULL;
-      FpPrint *new_scan;
       FpPrint *print;
       gboolean success;
 
@@ -556,7 +556,7 @@ dev_verify (FpDevice *dev)
           self->match_reported = TRUE;
           fpi_device_verify_report (dev,
                                     success ? FPI_MATCH_SUCCESS : FPI_MATCH_FAIL,
-                                    new_scan,
+                                    g_steal_pointer (&new_scan),
                                     NULL);
         }
     }

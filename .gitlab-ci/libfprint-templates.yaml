@@ -1,6 +1,10 @@
+# Bump image version on .gitlab-ci/libfprint-image-variables.yaml to trigger
+# a rebuild on changes to this file
+
 .libfprint_common_variables:
   LIBFPRINT_DEPENDENCIES:
     doxygen
+    dnf-plugins-core
     flatpak-builder
     gcc
     gcc-c++
@@ -27,3 +31,17 @@
     valgrind
     clang-analyzer
     diffutils
+
+  LIBFPRINT_EXEC: |
+    dnf debuginfo-install -y \
+      glib2 \
+      glibc \
+      libgusb \
+      libusb \
+      nss \
+      pixman
+
+    git clone https://github.com/martinpitt/umockdev.git && \
+        cd umockdev && \
+        meson _build --prefix=/usr && \
+        ninja -C _build && ninja -C _build install

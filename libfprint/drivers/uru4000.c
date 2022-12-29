@@ -317,6 +317,7 @@ irq_handler (FpiUsbTransfer *transfer,
       if (urudev->irqs_stopped_cb)
         urudev->irqs_stopped_cb (imgdev);
       urudev->irqs_stopped_cb = NULL;
+      g_clear_error (&error);
       return;
     }
   else if (error)
@@ -551,7 +552,7 @@ image_transfer_cb (FpiUsbTransfer *transfer, FpDevice *dev,
     }
   else
     {
-      self->img_data = g_memdup (transfer->buffer, sizeof (struct uru4k_image));
+      self->img_data = g_memdup2 (transfer->buffer, sizeof (struct uru4k_image));
       self->img_data_actual_length = transfer->actual_length;
       fpi_ssm_next_state (ssm);
     }
@@ -1413,6 +1414,9 @@ dev_deinit (FpImageDevice *dev)
     SECITEM_FreeItem (self->param, PR_TRUE);
   if (self->slot)
     PK11_FreeSlot (self->slot);
+
+  NSS_Shutdown ();
+
   g_usb_device_release_interface (fpi_device_get_usb_device (FP_DEVICE (dev)),
                                   self->interface, 0, &error);
   g_clear_pointer (&self->rand, g_rand_free);

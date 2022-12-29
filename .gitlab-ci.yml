@@ -1,4 +1,5 @@
 include:
+  - local: '.gitlab-ci/libfprint-image-variables.yaml'
   - local: '.gitlab-ci/libfprint-templates.yaml'
   - project: 'freedesktop/ci-templates'
     ref: master
@@ -7,7 +8,7 @@ include:
 
 variables:
   extends: .libfprint_common_variables
-  FDO_DISTRIBUTION_TAG: latest
+  FDO_DISTRIBUTION_TAG: $LIBFPRINT_IMAGE_TAG
   FDO_DISTRIBUTION_VERSION: rawhide
   FDO_UPSTREAM_REPO: "libfprint/$CI_PROJECT_NAME"
   FEDORA_IMAGE: "$CI_REGISTRY/libfprint/$CI_PROJECT_NAME/fedora/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG"
@@ -15,6 +16,7 @@ variables:
   LAST_ABI_BREAK: "056ea541ddc97f5806cffbd99a12dc87e4da3546"
 
 stages:
+  - image-build
   - check-source
   - build
   - test
@@ -69,6 +71,11 @@ test:
     - ninja -C _build coverage
     - cat _build/meson-logs/coverage.txt
   artifacts:
+    reports:
+      junit: "_build/meson-logs/testlog.junit.xml"
+      coverage_report:
+        coverage_format: cobertura
+        path: _build/meson-logs/coverage.xml
     expose_as: 'Coverage Report'
     when: always
     paths:
@@ -87,6 +94,8 @@ test_valgrind:
     - ninja -C _build
     - meson test -C _build --print-errorlogs --no-stdsplit --setup=valgrind
   artifacts:
+    reports:
+      junit: "_build/meson-logs/testlog.junit.xml"
     expose_as: 'Valgrind test logs'
     when: always
     paths:
@@ -118,7 +127,7 @@ test_indent:
   script:
     - scripts/uncrustify.sh
     - git diff
-    - "! git status -s | grep -q ."
+    - git diff-index --name-only --exit-code HEAD
 
 test_unsupported_list:
   stage: check-source
@@ -132,7 +141,8 @@ test_unsupported_list:
 flatpak:
   stage: flatpak
   extends: .flatpak
-  image: registry.gitlab.gnome.org/gnome/gnome-runtime-images/gnome:3.36
+  # From https://gitlab.gnome.org/GNOME/gnome-runtime-images/container_registry
+  image: registry.gitlab.gnome.org/gnome/gnome-runtime-images/gnome:42
   variables:
     MANIFEST_PATH: "demo/org.freedesktop.libfprint.Demo.json"
     FLATPAK_MODULE: "libfprint"
@@ -153,11 +163,12 @@ flatpak:
       allow_failure: true
 
 # CONTAINERS creation stage
-container_fedora_build:
+.container_fedora_build_base:
   extends: .fdo.container-build@fedora
+  stage: image-build
   only:
     variables:
-      - $CI_PIPELINE_SOURCE == "schedule" && $CRON_TASK == "BUILD_CI_IMAGES"
+      - $CI_PIPELINE_SOURCE == "never"
   variables:
     GIT_STRATEGY: none # no need to pull the whole tree for rebuilding the image
     FDO_FORCE_REBUILD: 1
@@ -168,7 +179,27 @@ container_fedora_build:
       libpcap-devel
       libudev-devel
     FDO_DISTRIBUTION_EXEC: |
-      git clone https://github.com/martinpitt/umockdev.git && \
-        cd umockdev && \
-        meson _build --prefix=/usr && \
-        ninja -C _build && ninja -C _build install
+      $LIBFPRINT_EXEC
+
+container_fedora_build_schedule:
+  extends: .container_fedora_build_base
+  only:
+    variables:
+      - $CI_PIPELINE_SOURCE == "schedule" && $CRON_TASK == "BUILD_CI_IMAGES"
+
+container_fedora_build_manual:
+  extends: .container_fedora_build_base
+  only:
+    variables:
+      - $LIBFPRINT_CI_ACTION == "build-image"
+
+container_fedora_build_on_deps_changed:
+  extends: .container_fedora_build_base
+  only:
+    variables:
+      - $CI_PROJECT_NAMESPACE == "libfprint" && $CI_PIPELINE_SOURCE != "schedule"
+    refs:
+      - branches
+      - merge_requests
+    changes:
+      - .gitlab-ci/libfprint-image-variables.yaml

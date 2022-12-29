@@ -190,7 +190,7 @@ data_resp_cb (FpiUsbTransfer *transfer, FpDevice *dev, gpointer user_data, GErro
     {
       if (!self->stop && (self->strips_len > 0))
         {
-          FpImage *img;
+          g_autoptr(FpImage) img = NULL;
           self->strips = g_slist_reverse (self->strips);
           fpi_do_movement_estimation (&assembling_ctx, self->strips);
           img = fpi_assemble_frames (&assembling_ctx, self->strips);
@@ -199,7 +199,7 @@ data_resp_cb (FpiUsbTransfer *transfer, FpDevice *dev, gpointer user_data, GErro
           self->strips = NULL;
           self->strips_len = 0;
           FpImage *resizeImage = fpi_image_resize (img, EGIS0570_RESIZE, EGIS0570_RESIZE);
-          fpi_image_device_image_captured (img_self, resizeImage);
+          fpi_image_device_image_captured (img_self, g_steal_pointer (&resizeImage));
         }
 
       fpi_image_device_report_finger_status (img_self, FALSE);

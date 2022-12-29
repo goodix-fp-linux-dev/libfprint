@@ -111,8 +111,6 @@ typedef struct
   GDestroyNotify   enroll_progress_destroy;
 } FpEnrollData;
 
-void enroll_data_free (FpEnrollData *enroll_data);
-
 typedef struct
 {
   FpPrint       *enrolled_print;   /* verify */
@@ -128,7 +126,6 @@ typedef struct
   GDestroyNotify match_destroy;
 } FpMatchData;
 
-void match_data_free (FpMatchData *match_data);
 
 void fpi_device_suspend (FpDevice *device);
 void fpi_device_resume (FpDevice *device);
