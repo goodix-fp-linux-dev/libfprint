@@ -137,10 +137,13 @@ driver_sources = {
         [ 'drivers/virtual-device-storage.c' ],
     'synaptics' :
         [ 'drivers/synaptics/synaptics.c', 'drivers/synaptics/bmkt_message.c' ],
-    'goodixmoc' :
-        [ 'drivers/goodixmoc/goodix.c', 'drivers/goodixmoc/goodix_proto.c' ],
+    # 'goodixmoc' disabled — conflicts with goodixtls5e0a for USB 27c6:5e0a
+    # 'goodixmoc' :
+    #     [ 'drivers/goodixmoc/goodix.c', 'drivers/goodixmoc/goodix_proto.c' ],
     'goodixtls511' :
         [ 'drivers/goodixtls/goodix511.c' ],
+    'goodixtls5e0a' :
+        [ 'drivers/goodixtls/goodix5e0a.c' ],
     'fpcmoc' :
         [ 'drivers/fpcmoc/fpc.c' ],
 }
@@ -238,6 +241,9 @@ deps += declare_dependency(include_directories: [
     include_directories('nbis/libfprint-include'),
 ])
 
+# SIGFM algorithm (SIFT-based matching via OpenCV)
+subdir('sigfm')
+
 libnbis = static_library('nbis',
     nbis_sources,
     dependencies: deps,
@@ -256,7 +262,7 @@ libfprint_private = static_library('fprint-private',
         libfprint_private_sources,
     ],
     dependencies: deps,
-    link_with: libnbis,
+    link_with: [libnbis, libsigfm],
     install: false)
 
 libfprint_drivers = static_library('fprint-drivers',
@@ -269,6 +275,7 @@ libfprint_drivers = static_library('fprint-drivers',
 mapfile = files('libfprint.ver')
 vflag = '-Wl,--version-script,@0@/@1@'.format(meson.source_root(), mapfile[0])
 
+cpplib = cpp.find_library('stdc++', required: true)
 libfprint = shared_library(versioned_libname.split('lib')[1],
     sources: [
         fp_enums,
@@ -279,7 +286,7 @@ libfprint = shared_library(versioned_libname.split('lib')[1],
     link_args : vflag,
     link_depends : mapfile,
     link_with: [libfprint_drivers, libfprint_private],
-    dependencies: deps,
+    dependencies: deps + [cpplib],
     install: true)
 
 libfprint_dep = declare_dependency(link_with: libfprint,

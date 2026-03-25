@@ -21,6 +21,7 @@
 #include "fpi-log.h"
 
 #include "fp-image-device-private.h"
+#include "fpi-print.h"
 
 #define BOZORTH3_DEFAULT_THRESHOLD 40
 
@@ -123,11 +124,13 @@ fp_image_device_start_capture_action (FpDevice *device)
   else if (action == FPI_DEVICE_ACTION_ENROLL)
     {
       FpPrint *enroll_print = NULL;
+      FpiPrintType target_type;
 
       fpi_device_get_enroll_data (device, &enroll_print);
+      target_type = (priv->algorithm == FPI_DEVICE_ALGO_SIGFM) ? FPI_PRINT_SIGFM : FPI_PRINT_NBIS;
       g_object_get (enroll_print, "fpi-type", &print_type, NULL);
-      if (print_type != FPI_PRINT_NBIS)
-        fpi_print_set_type (enroll_print, FPI_PRINT_NBIS);
+      if (print_type != target_type)
+        fpi_print_set_type (enroll_print, target_type);
     }
 
   priv->enroll_stage = 0;
@@ -197,6 +200,9 @@ fp_image_device_constructed (GObject *obj)
   priv->bz3_threshold = BOZORTH3_DEFAULT_THRESHOLD;
   if (cls->bz3_threshold > 0)
     priv->bz3_threshold = cls->bz3_threshold;
+
+  /* Set algorithm from class (default is NBIS = 0) */
+  priv->algorithm = cls->algorithm;
 
   G_OBJECT_CLASS (fp_image_device_parent_class)->constructed (obj);
 }

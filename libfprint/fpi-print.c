@@ -24,6 +24,7 @@
 #include "fp-print-private.h"
 #include "fpi-device.h"
 #include "fpi-compat.h"
+#include "sigfm/sigfm.hpp"
 
 /**
  * SECTION: fpi-print
@@ -46,11 +47,22 @@
 void
 fpi_print_add_print (FpPrint *print, FpPrint *add)
 {
-  g_return_if_fail (print->type == FPI_PRINT_NBIS);
-  g_return_if_fail (add->type == FPI_PRINT_NBIS);
+  g_return_if_fail (print->type == add->type);
 
-  g_assert (add->prints->len == 1);
-  g_ptr_array_add (print->prints, g_memdup2 (add->prints->pdata[0], sizeof (struct xyt_struct)));
+  if (print->type == FPI_PRINT_NBIS)
+    {
+      g_assert (add->prints->len == 1);
+      g_ptr_array_add (print->prints, g_memdup2 (add->prints->pdata[0], sizeof (struct xyt_struct)));
+    }
+  else if (print->type == FPI_PRINT_SIGFM)
+    {
+      g_assert (add->prints->len == 1);
+      g_ptr_array_add (print->prints, sigfm_copy_info (add->prints->pdata[0]));
+    }
+  else
+    {
+      g_assert_not_reached ();
+    }
 }
 
 /**
@@ -75,6 +87,11 @@ fpi_print_set_type (FpPrint     *print,
     {
       g_assert_null (print->prints);
       print->prints = g_ptr_array_new_with_free_func (g_free);
+    }
+  else if (print->type == FPI_PRINT_SIGFM)
+    {
+      g_assert_null (print->prints);
+      print->prints = g_ptr_array_new_with_free_func ((GDestroyNotify) sigfm_free_info);
     }
   g_object_notify (G_OBJECT (print), "fpi-type");
 }
@@ -156,11 +173,7 @@ fpi_print_add_from_image (FpPrint *print,
                           FpImage *image,
                           GError **error)
 {
-  GPtrArray *minutiae;
-  struct fp_minutiae _minutiae;
-  struct xyt_struct *xyt;
-
-  if (print->type != FPI_PRINT_NBIS || !image)
+  if (!image)
     {
       g_set_error (error,
                    G_IO_ERROR,
@@ -169,23 +182,51 @@ fpi_print_add_from_image (FpPrint *print,
       return FALSE;
     }
 
-  minutiae = fp_image_get_minutiae (image);
-  if (!minutiae || minutiae->len == 0)
+  if (print->type == FPI_PRINT_NBIS)
+    {
+      GPtrArray *minutiae;
+      struct fp_minutiae _minutiae;
+      struct xyt_struct *xyt;
+
+      minutiae = fp_image_get_minutiae (image);
+      if (!minutiae || minutiae->len == 0)
+        {
+          g_set_error (error,
+                       G_IO_ERROR,
+                       G_IO_ERROR_INVALID_DATA,
+                       "No minutiae found in image or not yet detected!");
+          return FALSE;
+        }
+
+      _minutiae.num = minutiae->len;
+      _minutiae.list = (struct fp_minutia **) minutiae->pdata;
+      _minutiae.alloc = minutiae->len;
+
+      xyt = g_new0 (struct xyt_struct, 1);
+      minutiae_to_xyt (&_minutiae, image->width, image->height, xyt);
+      g_ptr_array_add (print->prints, xyt);
+    }
+  else if (print->type == FPI_PRINT_SIGFM)
+    {
+      if (!image->sigfm_info)
+        {
+          g_set_error (error,
+                       G_IO_ERROR,
+                       G_IO_ERROR_INVALID_DATA,
+                       "No SIGFM info found in image or not yet extracted!");
+          return FALSE;
+        }
+
+      g_ptr_array_add (print->prints, sigfm_copy_info (image->sigfm_info));
+    }
+  else
     {
       g_set_error (error,
                    G_IO_ERROR,
                    G_IO_ERROR_INVALID_DATA,
-                   "No minutiae found in image or not yet detected!");
+                   "Cannot add print data from image!");
       return FALSE;
     }
-
-  _minutiae.num = minutiae->len;
-  _minutiae.list = (struct fp_minutia **) minutiae->pdata;
-  _minutiae.alloc = minutiae->len;
-
-  xyt = g_new0 (struct xyt_struct, 1);
-  minutiae_to_xyt (&_minutiae, image->width, image->height, xyt);
-  g_ptr_array_add (print->prints, xyt);
 
   g_clear_object (&print->image);
   print->image = g_object_ref (image);
@@ -243,6 +284,54 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
       fp_dbg ("score %d/%d", score, bz3_threshold);
 
       if (score >= bz3_threshold)
+        return FPI_MATCH_SUCCESS;
+    }
+
+  return FPI_MATCH_FAIL;
+}
+
+/**
+ * fpi_print_sigfm_match:
+ * @template: A #FpPrint containing one or more prints
+ * @print: A newly scanned #FpPrint to test
+ * @error: Return location for error
+ *
+ * Match the newly scanned @print against the prints contained in @template
+ * using the SIGFM algorithm.
+ *
+ * Returns: Whether the prints match, @error will be set if #FPI_MATCH_ERROR is returned
+ */
+FpiMatchResult
+fpi_print_sigfm_match (FpPrint *template, FpPrint *print, GError **error)
+{
+  SigfmImgInfo *pinfo;
+  gint i;
+
+  if (template->type != FPI_PRINT_SIGFM || print->type != FPI_PRINT_SIGFM)
+    {
+      *error = fpi_device_error_new_msg (FP_DEVICE_ERROR_NOT_SUPPORTED,
+                                         "It is only possible to match SIGFM type print data");
+      return FPI_MATCH_ERROR;
+    }
+
+  if (print->prints->len != 1)
+    {
+      *error = fpi_device_error_new_msg (FP_DEVICE_ERROR_GENERAL,
+                                         "New print contains more than one print!");
+      return FPI_MATCH_ERROR;
+    }
+
+  pinfo = g_ptr_array_index (print->prints, 0);
+
+  for (i = 0; i < (gint) template->prints->len; i++)
+    {
+      SigfmImgInfo *ginfo;
+      gint score;
+      ginfo = g_ptr_array_index (template->prints, i);
+      score = sigfm_match_score (pinfo, ginfo);
+      fp_dbg ("SIGFM score %d", score);
+
+      if (score > 0)
         return FPI_MATCH_SUCCESS;
     }
 

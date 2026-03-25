@@ -21,6 +21,17 @@
 
 #include "fpi-device.h"
 #include "fp-image-device.h"
+#include "fpi-print.h"
+
+/**
+ * FpiImageDeviceAlgorithm:
+ * @FPI_DEVICE_ALGO_NBIS: Use NBIS/bozorth3 minutiae matching (default)
+ * @FPI_DEVICE_ALGO_SIGFM: Use SIGFM SIFT-based matching
+ */
+typedef enum {
+  FPI_DEVICE_ALGO_NBIS  = 0,
+  FPI_DEVICE_ALGO_SIGFM = 1,
+} FpiImageDeviceAlgorithm;
 
 /**
  * FpiImageDeviceState:
@@ -107,6 +118,8 @@ struct _FpImageDeviceClass
   gint          bz3_threshold;
   gint          img_width;
   gint          img_height;
+
+  FpiImageDeviceAlgorithm algorithm;
 
   void          (*img_open)     (FpImageDevice *dev);
   void          (*img_close)    (FpImageDevice *dev);

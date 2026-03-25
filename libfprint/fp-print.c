@@ -23,6 +23,7 @@
 #include "fp-print-private.h"
 #include "fpi-compat.h"
 #include "fpi-log.h"
+#include "sigfm/sigfm.hpp"
 
 /**
  * SECTION: fp-print
@@ -627,6 +628,27 @@ fp_print_equal (FpPrint *self, FpPrint *other)
 
       return TRUE;
     }
+  else if (self->type == FPI_PRINT_SIGFM)
+    {
+      /* SIGFM prints are matched via score, not direct equality.
+       * For serialization equality, compare binary representations. */
+      guint i;
+
+      if (self->prints->len != other->prints->len)
+        return FALSE;
+
+      for (i = 0; i < self->prints->len; i++)
+        {
+          int a_len = 0, b_len = 0;
+          g_autofree unsigned char *a_data = sigfm_serialize_binary (g_ptr_array_index (self->prints, i), &a_len);
+          g_autofree unsigned char *b_data = sigfm_serialize_binary (g_ptr_array_index (other->prints, i), &b_len);
+
+          if (a_len != b_len || memcmp (a_data, b_data, a_len) != 0)
+            return FALSE;
+        }
+
+      return TRUE;
+    }
   else
     {
       g_assert_not_reached ();
@@ -680,7 +702,7 @@ fp_print_serialize (FpPrint *print,
   g_variant_builder_open (&builder, G_VARIANT_TYPE_VARDICT);
   g_variant_builder_close (&builder);
 
-  /* Insert NBIS print data for type NBIS, otherwise the GVariant directly */
+  /* Insert NBIS print data for type NBIS, SIGFM binary data for SIGFM, otherwise the GVariant directly */
   if (print->type == FPI_PRINT_NBIS)
     {
       GVariantBuilder nested = G_VARIANT_BUILDER_INIT (G_VARIANT_TYPE ("(a(aiaiai))"));
@@ -711,6 +733,25 @@ fp_print_serialize (FpPrint *print,
           g_variant_builder_close (&nested);
         }
 
+      g_variant_builder_close (&nested);
+      g_variant_builder_add (&builder, "v", g_variant_builder_end (&nested));
+    }
+  else if (print->type == FPI_PRINT_SIGFM)
+    {
+      GVariantBuilder nested = G_VARIANT_BUILDER_INIT (G_VARIANT_TYPE ("(aay)"));
+      guint i;
+
+      g_variant_builder_open (&nested, G_VARIANT_TYPE ("aay"));
+      for (i = 0; i < print->prints->len; i++)
+        {
+          SigfmImgInfo *info = g_ptr_array_index (print->prints, i);
+          int bin_len = 0;
+          g_autofree unsigned char *bin = sigfm_serialize_binary (info, &bin_len);
+
+          g_variant_builder_add_value (&nested,
+                                       g_variant_new_fixed_array (G_VARIANT_TYPE_BYTE,
+                                                                  bin, bin_len, 1));
+        }
       g_variant_builder_close (&nested);
       g_variant_builder_add (&builder, "v", g_variant_builder_end (&nested));
     }
@@ -868,6 +909,31 @@ fp_print_deserialize (const guchar *data,
           memcpy (xyt->thetacol, thetacol, sizeof (xcol[0]) * xlen);
 
           g_ptr_array_add (result->prints, g_steal_pointer (&xyt));
+        }
+    }
+  else if (type == FPI_PRINT_SIGFM)
+    {
+      g_autoptr(GVariant) prints = g_variant_get_child_value (print_data, 0);
+      guint i;
+
+      result = g_object_new (FP_TYPE_PRINT,
+                             "driver", driver,
+                             "device-id", device_id,
+                             "device-stored", device_stored,
+                             NULL);
+      g_object_ref_sink (result);
+      fpi_print_set_type (result, FPI_PRINT_SIGFM);
+      for (i = 0; i < g_variant_n_children (prints); i++)
+        {
+          g_autoptr(GVariant) child = g_variant_get_child_value (prints, i);
+          gsize bin_len = 0;
+          const guint8 *bin = g_variant_get_fixed_array (child, &bin_len, 1);
+          SigfmImgInfo *info = sigfm_deserialize_binary (bin, bin_len);
+
+          if (!info)
+            goto invalid_format;
+
+          g_ptr_array_add (result->prints, info);
         }
     }
   else if (type == FPI_PRINT_RAW)

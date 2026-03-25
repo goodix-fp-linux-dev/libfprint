@@ -44,6 +44,9 @@ typedef struct _GoodixTlsServer
   int       client_fd;
 
   pthread_t serve_thread;
+
+  guint8   *psk_data;   // Custom PSK data (NULL = use all zeros)
+  guint     psk_len;    // Length of custom PSK
 } GoodixTlsServer;
 
 /**
@@ -105,5 +108,19 @@ int goodix_tls_client_read (GoodixTlsServer *self,
  * @param error output error
  * @return gboolean TRUE on success, FALSE otherwise
  */
+/**
+ * @brief Initialise the server with a specific PSK
+ *
+ * @param self context to init
+ * @param psk PSK data to use (copied internally)
+ * @param psk_len length of the PSK
+ * @param error output error
+ * @return gboolean TRUE on success, FALSE otherwise
+ */
+gboolean goodix_tls_server_init_with_psk (GoodixTlsServer *self,
+                                           const guint8    *psk,
+                                           guint            psk_len,
+                                           GError         **error);
+
 gboolean goodix_tls_server_deinit (GoodixTlsServer *self,
                                    GError         **error);

@@ -22,6 +22,7 @@
 
 #include "fp-image-device-private.h"
 #include "fp-image-device.h"
+#include "fpi-print.h"
 
 /**
  * SECTION: fpi-image-device
@@ -242,26 +243,46 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
   FpDevice *device = FP_DEVICE (self);
   FpImageDevicePrivate *priv;
   FpiDeviceAction action;
+  FpiPrintType print_type;
 
   /* Note: We rely on the device to not disappear during an operation. */
   priv = fp_image_device_get_instance_private (FP_IMAGE_DEVICE (device));
   priv->minutiae_scan_active = FALSE;
 
-  if (!fp_image_detect_minutiae_finish (image, res, &error))
+  /* Determine the print type based on the algorithm */
+  print_type = (priv->algorithm == FPI_DEVICE_ALGO_SIGFM) ? FPI_PRINT_SIGFM : FPI_PRINT_NBIS;
+
+  if (print_type == FPI_PRINT_NBIS)
     {
-      /* Cancel operation . */
-      if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+      if (!fp_image_detect_minutiae_finish (image, res, &error))
         {
-          fp_image_device_maybe_complete_action (self, g_steal_pointer (&error));
-          fpi_image_device_deactivate (self, TRUE);
-          return;
+          if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+            {
+              fp_image_device_maybe_complete_action (self, g_steal_pointer (&error));
+              fpi_image_device_deactivate (self, TRUE);
+              return;
+            }
+
+          g_warning ("Failed to detect minutiae: %s", error->message);
+          g_clear_pointer (&error, g_error_free);
+          error = fpi_device_retry_new_msg (FP_DEVICE_RETRY_GENERAL, "Minutiae detection failed, please retry");
         }
+    }
+  else
+    {
+      if (!fp_image_extract_sigfm_info_finish (image, res, &error))
+        {
+          if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+            {
+              fp_image_device_maybe_complete_action (self, g_steal_pointer (&error));
+              fpi_image_device_deactivate (self, TRUE);
+              return;
+            }
 
-      /* Replace error with a retry condition. */
-      g_warning ("Failed to detect minutiae: %s", error->message);
-      g_clear_pointer (&error, g_error_free);
-
-      error = fpi_device_retry_new_msg (FP_DEVICE_RETRY_GENERAL, "Minutiae detection failed, please retry");
+          g_warning ("Failed to extract SIGFM info: %s", error->message);
+          g_clear_pointer (&error, g_error_free);
+          error = fpi_device_retry_new_msg (FP_DEVICE_RETRY_GENERAL, "SIGFM extraction failed, please retry");
+        }
     }
 
   action = fpi_device_get_current_action (device);
@@ -276,7 +297,7 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
   if (!error)
     {
       print = fp_print_new (device);
-      fpi_print_set_type (print, FPI_PRINT_NBIS);
+      fpi_print_set_type (print, print_type);
       if (!fpi_print_add_from_image (print, image, &error))
         {
           g_clear_object (&print);
@@ -284,7 +305,6 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
           if (error->domain != FP_DEVICE_RETRY)
             {
               fp_image_device_maybe_complete_action (self, g_steal_pointer (&error));
-              /* We might not yet be deactivating, if we are enrolling. */
               fpi_image_device_deactivate (self, TRUE);
               return;
             }
@@ -323,9 +343,16 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
 
       fpi_device_get_verify_data (device, &template);
       if (print)
-        result = fpi_print_bz3_match (template, print, priv->bz3_threshold, &error);
+        {
+          if (priv->algorithm == FPI_DEVICE_ALGO_SIGFM)
+            result = fpi_print_sigfm_match (template, print, &error);
+          else
+            result = fpi_print_bz3_match (template, print, priv->bz3_threshold, &error);
+        }
       else
-        result = FPI_MATCH_ERROR;
+        {
+          result = FPI_MATCH_ERROR;
+        }
 
       if (!error || error->domain == FP_DEVICE_RETRY)
         fpi_device_verify_report (device, result, g_steal_pointer (&print), g_steal_pointer (&error));
@@ -342,8 +369,14 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
       for (i = 0; !error && i < templates->len; i++)
         {
           FpPrint *template = g_ptr_array_index (templates, i);
+          FpiMatchResult match;
 
-          if (fpi_print_bz3_match (template, print, priv->bz3_threshold, &error) == FPI_MATCH_SUCCESS)
+          if (priv->algorithm == FPI_DEVICE_ALGO_SIGFM)
+            match = fpi_print_sigfm_match (template, print, &error);
+          else
+            match = fpi_print_bz3_match (template, print, priv->bz3_threshold, &error);
+
+          if (match == FPI_MATCH_SUCCESS)
             {
               result = template;
               break;
@@ -357,12 +390,6 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
     }
   else
     {
-      /* XXX: This can be hit currently due to a race condition in the enroll code!
-       *      In that case we scan a further image even though the minutiae for the previous
-       *      one have not yet been detected.
-       *      We need to keep track on the pending minutiae detection and the fact that
-       *      it will finish eventually (or we may need to retry on error and activate the
-       *      device again). */
       g_assert_not_reached ();
     }
 }
@@ -494,12 +521,23 @@ fpi_image_device_image_captured (FpImageDevice *self, FpImage *image)
 
   priv->minutiae_scan_active = TRUE;
 
-  /* XXX: We also detect minutiae in capture mode, we solely do this
-   *      to normalize the image which will happen as a by-product. */
-  fp_image_detect_minutiae (image,
-                            fpi_device_get_cancellable (FP_DEVICE (self)),
-                            fpi_image_device_minutiae_detected,
-                            self);
+  /* Route to SIGFM or NBIS based on algorithm selection */
+  if (priv->algorithm == FPI_DEVICE_ALGO_SIGFM)
+    {
+      fp_image_extract_sigfm_info (image,
+                                   fpi_device_get_cancellable (FP_DEVICE (self)),
+                                   fpi_image_device_minutiae_detected,
+                                   self);
+    }
+  else
+    {
+      /* XXX: We also detect minutiae in capture mode, we solely do this
+       *      to normalize the image which will happen as a by-product. */
+      fp_image_detect_minutiae (image,
+                                fpi_device_get_cancellable (FP_DEVICE (self)),
+                                fpi_image_device_minutiae_detected,
+                                self);
+    }
 
   /* XXX: This is wrong if we add support for raw capture mode. */
   fp_image_device_change_state (self, FPI_IMAGE_DEVICE_STATE_AWAIT_FINGER_OFF);

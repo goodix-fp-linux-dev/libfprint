@@ -123,8 +123,9 @@ default_drivers = [
     'upektc',
     'upeksonly',
     'upekts',
-    'goodixmoc',
+    # 'goodixmoc',  # disabled — conflicts with goodixtls5e0a for 27c6:5e0a
     'goodixtls511',
+    'goodixtls5e0a',
     'nb1010',
     'fpcmoc',
 
@@ -160,6 +161,7 @@ driver_helper_mapping = {
     'uru4000' : [ 'nss' ],
     'elanspi' : [ 'udev' ],
     'goodixtls511' : [ 'goodixtls' ],
+    'goodixtls5e0a' : [ 'goodixtls' ],
     'virtual_image'          : [ 'virtual' ],
     'virtual_device'         : [ 'virtual' ],
     'virtual_device_storage' : [ 'virtual' ],

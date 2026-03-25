@@ -484,6 +484,17 @@ void goodix_send_read_otp (FpDevice             *dev,
                            GoodixDefaultCallback callback,
                            gpointer              user_data);
 
+/**
+ * @brief Send a POV image check command (0xd6) to the device
+ *
+ * @param dev
+ * @param callback
+ * @param user_data
+ */
+void goodix_send_pov_image_check (FpDevice             *dev,
+                                  GoodixDefaultCallback  callback,
+                                  gpointer               user_data);
+
 // ---- GOODIX SEND SECTION END ----
 
 // -----------------------------------------------------------------------------
@@ -566,5 +577,58 @@ gboolean goodix_shutdown_tls (FpDevice *dev,
 void goodix_tls_read_image (FpDevice           *dev,
                             GoodixImageCallback callback,
                             gpointer            user_data);
+
+/**
+ * @brief Initialise image TLS with a specific PSK (for dual-TLS devices like 5e0a)
+ *
+ * @param dev
+ * @param psk PSK data
+ * @param psk_len length of PSK
+ * @param callback
+ * @param user_data
+ */
+void goodix_tls_init_image (FpDevice          *dev,
+                            const guint8      *psk,
+                            guint              psk_len,
+                            GoodixNoneCallback callback,
+                            gpointer           user_data);
+
+/**
+ * @brief Read a TLS-encrypted image from the device via 0xb2 packets
+ *        and decrypt it using the image TLS server
+ *
+ * @param dev
+ * @param callback Called with decrypted image data
+ * @param user_data
+ */
+void goodix_tls_read_image_5e0a (FpDevice           *dev,
+                                 GoodixImageCallback callback,
+                                 gpointer            user_data);
+
+/**
+ * @brief Read a TLS-encrypted image from the device via 0xb2 packets
+ *        using a custom MCU_GET_IMAGE payload
+ *
+ * @param dev
+ * @param payload Custom payload for MCU_GET_IMAGE command
+ * @param payload_len Length of payload
+ * @param callback Called with decrypted image data
+ * @param user_data
+ */
+void goodix_tls_read_image_5e0a_with_payload (FpDevice           *dev,
+                                               const guint8       *payload,
+                                               guint16             payload_len,
+                                               GoodixImageCallback callback,
+                                               gpointer            user_data);
+
+/**
+ * @brief Shutdown the image TLS server
+ *
+ * @param dev
+ * @param error
+ * @return gboolean TRUE if ok, FALSE otherwise
+ */
+gboolean goodix_shutdown_image_tls (FpDevice *dev,
+                                    GError  **error);
 
 // ---- TLS SECTION END ----

@@ -1,4 +1,8 @@
+builddir/
+*.log
+*.bin
+*.pgm
 *.o
-*.swp
-_build
-.vscode/
+test_5e0a
+test_5e0a.c
+test_minutiae.c

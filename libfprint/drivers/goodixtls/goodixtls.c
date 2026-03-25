@@ -39,6 +39,9 @@
 #include "goodix.h"
 #include "goodixtls.h"
 
+// Index for storing GoodixTlsServer pointer in SSL ex_data
+static int goodix_tls_server_ex_data_idx = -1;
+
 static GError *
 err_from_ssl (void)
 {
@@ -59,18 +62,42 @@ tls_server_psk_server_callback (SSL           *ssl,
                                 unsigned char *psk,
                                 unsigned int   max_psk_len)
 {
-  const int len = 32;
+  GoodixTlsServer *server = NULL;
 
-  fp_dbg ("PSK WANTED %d", max_psk_len);
+  if (goodix_tls_server_ex_data_idx >= 0)
+    server = SSL_get_ex_data (ssl, goodix_tls_server_ex_data_idx);
+
+  guint len = 32;
+  const guint8 *psk_source = NULL;
+
+  if (server && server->psk_data && server->psk_len > 0)
+    {
+      psk_source = server->psk_data;
+      len = server->psk_len;
+    }
+
+  fp_dbg ("PSK callback: identity='%s', max_psk_len=%d, server=%p, "
+          "psk_data=%p, psk_len=%u, using %s PSK, len=%u",
+          identity ? identity : "(null)", max_psk_len,
+          (void *)server,
+          server ? (void *)server->psk_data : NULL,
+          server ? server->psk_len : 0,
+          psk_source ? "custom" : "zero", len);
+
   if (len > max_psk_len)
     {
       fp_err ("max psk length (%d) too short (needs %d)", max_psk_len, len);
       return 0;
     }
 
-  // zero out the psk
-  for (int n = 0; n != len; ++n)
-    psk[n] = 0;
+  if (psk_source)
+    memcpy (psk, psk_source, len);
+  else
+    memset (psk, 0, len);
+
+  // Log first 8 bytes of PSK being returned
+  fp_dbg ("PSK returned (%u bytes): %02x %02x %02x %02x %02x %02x %02x %02x ...",
+          len, psk[0], psk[1], psk[2], psk[3], psk[4], psk[5], psk[6], psk[7]);
 
   return len;
 }
@@ -95,7 +122,7 @@ tls_server_config_ctx (SSL_CTX *ctx)
 {
   SSL_CTX_set_ecdh_auto (ctx, 1);
   SSL_CTX_set_dh_auto (ctx, 1);
-  SSL_CTX_set_cipher_list (ctx, "ALL");
+  SSL_CTX_set_cipher_list (ctx, "PSK-AES128-CBC-SHA256:ALL");
   SSL_CTX_set_min_proto_version (ctx, TLS1_2_VERSION);
   SSL_CTX_set_max_proto_version (ctx, TLS1_2_VERSION);
   SSL_CTX_set_psk_server_callback (ctx, tls_server_psk_server_callback);
@@ -129,7 +156,7 @@ tls_config_ssl (SSL *ssl)
   SSL_set_min_proto_version (ssl, TLS1_2_VERSION);
   SSL_set_max_proto_version (ssl, TLS1_2_VERSION);
   SSL_set_psk_server_callback (ssl, tls_server_psk_server_callback);
-  SSL_set_cipher_list (ssl, "ALL");
+  SSL_set_cipher_list (ssl, "PSK-AES128-CBC-SHA256:ALL");
 }
 
 static void *
@@ -142,7 +169,8 @@ goodix_tls_init_serve (void *me)
 
   fp_dbg ("TLS server accept done");
   if (retr <= 0)
-    fp_err ("server ready failed: %s", ERR_reason_error_string (ERR_get_error ()));
+    fp_warn ("server accept failed (may be expected for command TLS): %s",
+             ERR_reason_error_string (ERR_get_error ()));
   else
     fp_dbg ("TLS connection ready");
   return NULL;
@@ -160,11 +188,14 @@ goodix_tls_server_deinit (GoodixTlsServer *self, GError **error)
   SSL_CTX_free (self->ssl_ctx);
   pthread_join (self->serve_thread, NULL);
 
+  g_clear_pointer (&self->psk_data, g_free);
+  self->psk_len = 0;
+
   return TRUE;
 }
 
-gboolean
-goodix_tls_server_init (GoodixTlsServer *self, GError **error)
+static gboolean
+goodix_tls_server_init_internal (GoodixTlsServer *self, GError **error)
 {
   SSL_load_error_strings ();
   OpenSSL_add_ssl_algorithms ();
@@ -193,9 +224,36 @@ goodix_tls_server_init (GoodixTlsServer *self, GError **error)
     }
   self->ssl_layer = SSL_new (self->ssl_ctx);
   tls_config_ssl (self->ssl_layer);
+
+  // Register the ex_data index once
+  if (goodix_tls_server_ex_data_idx < 0)
+    goodix_tls_server_ex_data_idx = SSL_get_ex_new_index (0, NULL, NULL, NULL, NULL);
+
+  // Store the server struct pointer so the PSK callback can find it
+  SSL_set_ex_data (self->ssl_layer, goodix_tls_server_ex_data_idx, self);
+
   SSL_set_fd (self->ssl_layer, self->sock_fd);
 
   pthread_create (&self->serve_thread, 0, goodix_tls_init_serve, self);
 
   return TRUE;
+}
+
+gboolean
+goodix_tls_server_init (GoodixTlsServer *self, GError **error)
+{
+  self->psk_data = NULL;
+  self->psk_len = 0;
+  return goodix_tls_server_init_internal (self, error);
+}
+
+gboolean
+goodix_tls_server_init_with_psk (GoodixTlsServer *self,
+                                  const guint8    *psk,
+                                  guint            psk_len,
+                                  GError         **error)
+{
+  self->psk_data = g_memdup (psk, psk_len);
+  self->psk_len = psk_len;
+  return goodix_tls_server_init_internal (self, error);
 }

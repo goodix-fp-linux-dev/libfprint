@@ -23,6 +23,7 @@
 #include "fpi-compat.h"
 #include "fpi-image.h"
 #include "fpi-log.h"
+#include "sigfm/sigfm.hpp"
 
 #include <config.h>
 #include <nbis.h>
@@ -64,6 +65,11 @@ fp_image_finalize (GObject *object)
   g_clear_pointer (&self->data, g_free);
   g_clear_pointer (&self->binarized, g_free);
   g_clear_pointer (&self->minutiae, g_ptr_array_unref);
+  if (self->sigfm_info)
+    {
+      sigfm_free_info (self->sigfm_info);
+      self->sigfm_info = NULL;
+    }
 
   G_OBJECT_CLASS (fp_image_parent_class)->finalize (object);
 }
@@ -300,6 +306,47 @@ fp_image_detect_minutiae_thread_func (GTask        *task,
   lfsparms = g_memdup2 (&g_lfsparms_V2, sizeof (LFSPARMS));
   lfsparms->remove_perimeter_pts = data->flags & FPI_IMAGE_PARTIAL ? TRUE : FALSE;
 
+  /* For small/partial sensors (e.g. 80x88 pixels), relax NBIS false-minutia
+   * removal thresholds. The default V2 parameters are tuned for full-size
+   * (300x400+) sensor images; on small sensors they over-aggressively remove
+   * valid minutiae, leaving too few for reliable matching.
+   *
+   * Strategy: increase distance/length thresholds to impossible values so
+   * the corresponding removal tests effectively never trigger, while keeping
+   * perimeter point removal active (critical for border artifacts). */
+  if (data->flags & FPI_IMAGE_PARTIAL)
+    {
+      /* Relax hook removal — hooks on small images are often real features */
+      lfsparms->max_hook_len = 200;
+
+      /* Relax half-loop (island/lake) removal — small sensor geometry
+       * causes many false positives in this test */
+      lfsparms->max_half_loop = 200;
+
+      /* Don't remove minutiae near invalid-direction blocks — small images
+       * have proportionally more edge blocks marked invalid */
+      lfsparms->inv_block_margin = 0;
+      lfsparms->trans_dir_pix = 0;
+
+      /* Relax malformation removal — ridges on small sensors look
+       * "malformed" to NBIS because there's so little context */
+      lfsparms->min_malformation_ratio = 0.1;
+      lfsparms->max_malformation_dist = 200;
+
+      /* Relax pore removal — pore-like features on small sensors are
+       * often real minutiae or useful ridge detail */
+      lfsparms->pores_min_dist2 = 0.01;
+      lfsparms->pores_max_ratio = 100.0;
+
+      /* Increase perimeter removal distance slightly — the dead-zone
+       * border on small sensors is proportionally larger */
+      lfsparms->min_pp_distance = 6;
+    }
+
+  /* NOTE: ppmm only affects quality scoring in NBIS (combined_minutia_quality),
+   * NOT the number of detected minutiae. Tested ppmm 5.0-30.0 — count is
+   * identical for all values. The default 19.685 (500 DPI) is fine. */
+
   timer = g_timer_new ();
   r = get_minutiae (&minutiae, &quality_map, &direction_map,
                     &low_contrast_map, &low_flow_map, &high_curve_map,
@@ -319,6 +366,10 @@ fp_image_detect_minutiae_thread_func (GTask        *task,
       g_object_unref (task);
       return;
     }
+
+  if (data->minutiae)
+    fp_dbg ("Minutiae found: %d (image %dx%d, ppmm=%.1f)",
+            data->minutiae->num, data->width, data->height, data->ppmm);
 
   if (!data->minutiae || data->minutiae->num == 0)
     {
@@ -476,6 +527,142 @@ gboolean
 fp_image_detect_minutiae_finish (FpImage      *self,
                                  GAsyncResult *result,
                                  GError      **error)
+{
+  return g_task_propagate_boolean (G_TASK (result), error);
+}
+
+/* SIGFM extraction */
+
+typedef struct
+{
+  GAsyncReadyCallback user_cb;
+  gint                width, height;
+  FpiImageFlags       flags;
+  guchar             *image;
+  SigfmImgInfo       *sigfm_info;
+} ExtractSigfmData;
+
+static void
+fp_image_extract_sigfm_free (ExtractSigfmData *data)
+{
+  g_clear_pointer (&data->image, g_free);
+  if (data->sigfm_info)
+    sigfm_free_info (data->sigfm_info);
+  g_free (data);
+}
+
+static void
+fp_image_extract_sigfm_cb (GObject      *source_object,
+                           GAsyncResult *res,
+                           gpointer      user_data)
+{
+  GTask *task = G_TASK (res);
+  FpImage *image;
+  ExtractSigfmData *data = g_task_get_task_data (task);
+
+  if (!g_task_had_error (task))
+    {
+      image = FP_IMAGE (source_object);
+
+      image->flags = data->flags;
+
+      g_clear_pointer (&image->data, g_free);
+      image->data = g_steal_pointer (&data->image);
+
+      if (image->sigfm_info)
+        sigfm_free_info (image->sigfm_info);
+      image->sigfm_info = g_steal_pointer (&data->sigfm_info);
+    }
+
+  if (data->user_cb)
+    data->user_cb (source_object, res, user_data);
+}
+
+static void
+fp_image_sigfm_extract_thread_func (GTask        *task,
+                                    gpointer      source_object,
+                                    gpointer      task_data,
+                                    GCancellable *cancellable)
+{
+  g_autoptr(GTimer) timer = NULL;
+  ExtractSigfmData *data = task_data;
+
+  /* Normalize the image first */
+  if (data->flags & FPI_IMAGE_H_FLIPPED)
+    hflip (data->image, data->width, data->height);
+
+  if (data->flags & FPI_IMAGE_V_FLIPPED)
+    vflip (data->image, data->width, data->height);
+
+  if (data->flags & FPI_IMAGE_COLORS_INVERTED)
+    invert_colors (data->image, data->width, data->height);
+
+  data->flags &= ~(FPI_IMAGE_H_FLIPPED | FPI_IMAGE_V_FLIPPED | FPI_IMAGE_COLORS_INVERTED);
+
+  timer = g_timer_new ();
+  data->sigfm_info = sigfm_extract (data->image, data->width, data->height);
+  g_timer_stop (timer);
+  fp_dbg ("SIGFM extraction completed in %f secs", g_timer_elapsed (timer, NULL));
+
+  if (!data->sigfm_info)
+    {
+      g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_FAILED,
+                               "SIGFM extraction failed");
+      g_object_unref (task);
+      return;
+    }
+
+  fp_dbg ("SIGFM keypoints: %d", sigfm_keypoints_count (data->sigfm_info));
+
+  g_task_return_boolean (task, TRUE);
+  g_object_unref (task);
+}
+
+/**
+ * fp_image_extract_sigfm_info:
+ * @self: A #FpImage
+ * @cancellable: a #GCancellable, or %NULL
+ * @callback: the function to call on completion
+ * @user_data: the data to pass to @callback
+ *
+ * Extracts SIGFM info from an image.
+ */
+void
+fp_image_extract_sigfm_info (FpImage            *self,
+                             GCancellable       *cancellable,
+                             GAsyncReadyCallback callback,
+                             gpointer            user_data)
+{
+  GTask *task;
+  ExtractSigfmData *data = g_new0 (ExtractSigfmData, 1);
+
+  task = g_task_new (self, cancellable, fp_image_extract_sigfm_cb, user_data);
+
+  data->image = g_malloc (self->width * self->height);
+  memcpy (data->image, self->data, self->width * self->height);
+  data->flags = self->flags;
+  data->width = self->width;
+  data->height = self->height;
+  data->user_cb = callback;
+
+  g_task_set_task_data (task, data, (GDestroyNotify) fp_image_extract_sigfm_free);
+  g_task_run_in_thread (task, fp_image_sigfm_extract_thread_func);
+}
+
+/**
+ * fp_image_extract_sigfm_info_finish:
+ * @self: A #FpImage
+ * @result: A #GAsyncResult
+ * @error: Return location for errors, or %NULL to ignore
+ *
+ * Finish SIGFM info extraction in an image
+ *
+ * Returns: %TRUE on success
+ */
+gboolean
+fp_image_extract_sigfm_info_finish (FpImage      *self,
+                                   GAsyncResult *result,
+                                   GError      **error)
 {
   return g_task_propagate_boolean (G_TASK (result), error);
 }

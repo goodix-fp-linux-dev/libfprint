@@ -16,6 +16,7 @@ typedef enum {
   FPI_PRINT_UNDEFINED = 0,
   FPI_PRINT_RAW,
   FPI_PRINT_NBIS,
+  FPI_PRINT_SIGFM,
 } FpiPrintType;
 
 /**
@@ -46,6 +47,10 @@ FpiMatchResult fpi_print_bz3_match (FpPrint *temp,
                                     FpPrint *print,
                                     gint     bz3_threshold,
                                     GError **error);
+
+FpiMatchResult fpi_print_sigfm_match (FpPrint *template,
+                                      FpPrint *print,
+                                      GError **error);
 
 /* Helpers to encode metadata into user ID strings. */
 gchar *  fpi_print_generate_user_id (FpPrint *print);
