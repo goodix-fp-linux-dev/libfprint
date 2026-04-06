@@ -1331,8 +1331,16 @@ capture_ssm_done (FpiSsm   *ssm,
       return;
     }
 
-  /* Start another capture cycle */
-  goodix53x5_start_capture_ssm (idev);
+  /* Report finger-off here, after the SSM is fully torn down (self->ssm = NULL).
+   * This causes the framework to transition AWAIT_FINGER_OFF → IDLE →
+   * AWAIT_FINGER_ON, which calls our change_state() vfunc →
+   * goodix53x5_start_capture_ssm() for the next cycle.
+   *
+   * We must NOT do this from inside a SSM state handler (e.g. EC_OFF_PARSE)
+   * because change_state() is called synchronously by the framework and would
+   * start a new SSM before fpi_ssm_next_state() returns to complete the old
+   * one, causing an 'machine != NULL' assertion failure. */
+  fpi_image_device_report_finger_status (idev, FALSE);
 }
 
 static void
@@ -1549,7 +1557,14 @@ capture_ssm_state (FpiSsm   *ssm,
           img->data[i] = (guint8) (pixels[i] >> 4);  /* 12→8 bit */
         g_free (pixels);
 
-        fpi_image_device_image_captured (idev, img);
+        /* Upscale: the raw 108×88 sensor gives MINDTCT too few minutiae
+         * (typically <10, below Bozorth3's minimum of 10).  2× bilinear
+         * resize gives 216×176 which yields enough minutiae for matching. */
+        FpImage *scaled = fpi_image_resize (img, GOODIX53X5_ENLARGE_FACTOR,
+                                            GOODIX53X5_ENLARGE_FACTOR);
+        g_object_unref (img);
+
+        fpi_image_device_image_captured (idev, scaled);
         fpi_ssm_next_state (ssm);
       }
       break;
@@ -1595,7 +1610,11 @@ capture_ssm_state (FpiSsm   *ssm,
           }
         g_free (payload);
 
-        fpi_image_device_report_finger_status (idev, FALSE);
+        /* Do NOT report finger-off yet: we still need to send SLEEP and
+         * EC_OFF before the SSM completes.  Reporting here causes libfprint
+         * to restart the capture SSM immediately, creating a race where the
+         * sleep ACK is consumed by the new cycle's EC-ON recv.  We report
+         * finger-off at the end of CAPTURE_EC_OFF_PARSE instead. */
         fpi_ssm_next_state (ssm);
       }
       break;
@@ -1804,8 +1823,8 @@ fpi_device_goodix53x5_class_init (FpiDeviceGoodix53x5Class *klass)
   dev_class->id_table  = id_table;
   dev_class->scan_type = FP_SCAN_TYPE_PRESS;
 
-  img_class->img_width  = GOODIX53X5_SENSOR_WIDTH;
-  img_class->img_height = GOODIX53X5_SENSOR_HEIGHT;
+  img_class->img_width  = GOODIX53X5_SENSOR_WIDTH  * GOODIX53X5_ENLARGE_FACTOR;
+  img_class->img_height = GOODIX53X5_SENSOR_HEIGHT * GOODIX53X5_ENLARGE_FACTOR;
 
   img_class->bz3_threshold = 24;
 

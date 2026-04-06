@@ -192,16 +192,11 @@ goodix53x5_parse_message (const guint8  *buf,
   /* message_size is payload_len + 1 (for checksum); actual payload starts at buf[3] */
   total_needed = 3 + (gsize) message_size;  /* cmd + size_field + payload + checksum */
 
-  fp_dbg ("goodix53x5_parse_message: cmd=0x%02x message_size=%u total_needed=%zu buf_len=%zu",
-          command_byte, message_size, total_needed, buf_len);
+  fp_dbg ("goodix53x5: recv cmd=0x%02x size=%u", command_byte, message_size);
 
   /* Reassemble from chunks if needed */
   assembled = g_byte_array_new ();
-  fp_dbg ("goodix53x5_parse_message: appending first chunk: MIN(%zu, %d) = %zu",
-          buf_len, GOODIX53X5_USB_CHUNK_SIZE,
-          MIN (buf_len, (gsize) GOODIX53X5_USB_CHUNK_SIZE));
   g_byte_array_append (assembled, buf, (guint) MIN (buf_len, (gsize) GOODIX53X5_USB_CHUNK_SIZE));
-  fp_dbg ("goodix53x5_parse_message: after first append, assembled->len=%u", assembled->len);
 
   {
     const guint8 *remaining = buf + GOODIX53X5_USB_CHUNK_SIZE;
@@ -212,12 +207,11 @@ goodix53x5_parse_message (const guint8  *buf,
         guint8 contd_cmd = remaining[0];
         if ((contd_cmd & 0x01) == 0 || (contd_cmd & 0xFE) != command_byte)
           {
-            fp_warn ("goodix53x5: bad continuation byte 0x%02x (assembled=%u total=%zu remaining_len=%zu)",
-                     contd_cmd, assembled->len, total_needed, remaining_len);
+            fp_warn ("goodix53x5: bad continuation byte 0x%02x (assembled=%u total=%zu)",
+                     contd_cmd, assembled->len, total_needed);
             g_byte_array_free (assembled, TRUE);
             return FALSE;
           }
-        fp_dbg ("goodix53x5_parse_message: continuation chunk, assembled=%u, appending 63", assembled->len);
         g_byte_array_append (assembled, remaining + 1, GOODIX53X5_USB_CHUNK_SIZE - 1);
         remaining += GOODIX53X5_USB_CHUNK_SIZE;
         remaining_len -= GOODIX53X5_USB_CHUNK_SIZE;
@@ -470,33 +464,6 @@ goodix53x5_gtls_derive_session_key (const guint8      *psk,
   memcpy (seed + 13, client_random, GOODIX53X5_RANDOM_LEN);
   memcpy (seed + 13 + GOODIX53X5_RANDOM_LEN, server_random, GOODIX53X5_RANDOM_LEN);
 
-  fp_dbg ("goodix53x5: derive_session_key client_random: "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x",
-          client_random[0],  client_random[1],  client_random[2],  client_random[3],
-          client_random[4],  client_random[5],  client_random[6],  client_random[7],
-          client_random[8],  client_random[9],  client_random[10], client_random[11],
-          client_random[12], client_random[13], client_random[14], client_random[15],
-          client_random[16], client_random[17], client_random[18], client_random[19],
-          client_random[20], client_random[21], client_random[22], client_random[23],
-          client_random[24], client_random[25], client_random[26], client_random[27],
-          client_random[28], client_random[29], client_random[30], client_random[31]);
-  fp_dbg ("goodix53x5: derive_session_key server_random: "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x",
-          server_random[0],  server_random[1],  server_random[2],  server_random[3],
-          server_random[4],  server_random[5],  server_random[6],  server_random[7],
-          server_random[8],  server_random[9],  server_random[10], server_random[11],
-          server_random[12], server_random[13], server_random[14], server_random[15],
-          server_random[16], server_random[17], server_random[18], server_random[19],
-          server_random[20], server_random[21], server_random[22], server_random[23],
-          server_random[24], server_random[25], server_random[26], server_random[27],
-          server_random[28], server_random[29], server_random[30], server_random[31]);
-
   /* P_SHA256: A(0) = seed (77 bytes); A(i) = HMAC(psk, A(i-1)) which is 32 bytes */
   A = g_malloc (seed_len);
   memcpy (A, seed, seed_len);
@@ -535,58 +502,8 @@ goodix53x5_gtls_derive_session_key (const guint8      *psk,
   ctx->hmac_server_counter = GUINT16_FROM_LE (
     *(guint16 *) &session_key[GOODIX53X5_SYMMETRIC_KEY_LEN + GOODIX53X5_SYMMETRIC_IV_LEN + GOODIX53X5_HMAC_KEY_LEN + 2]);
 
-  fp_dbg ("goodix53x5: session_key symmetric_key: "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x",
-          ctx->symmetric_key[0],  ctx->symmetric_key[1],
-          ctx->symmetric_key[2],  ctx->symmetric_key[3],
-          ctx->symmetric_key[4],  ctx->symmetric_key[5],
-          ctx->symmetric_key[6],  ctx->symmetric_key[7],
-          ctx->symmetric_key[8],  ctx->symmetric_key[9],
-          ctx->symmetric_key[10], ctx->symmetric_key[11],
-          ctx->symmetric_key[12], ctx->symmetric_key[13],
-          ctx->symmetric_key[14], ctx->symmetric_key[15]);
-  fp_dbg ("goodix53x5: session_key symmetric_iv: "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x",
-          ctx->symmetric_iv[0],  ctx->symmetric_iv[1],
-          ctx->symmetric_iv[2],  ctx->symmetric_iv[3],
-          ctx->symmetric_iv[4],  ctx->symmetric_iv[5],
-          ctx->symmetric_iv[6],  ctx->symmetric_iv[7],
-          ctx->symmetric_iv[8],  ctx->symmetric_iv[9],
-          ctx->symmetric_iv[10], ctx->symmetric_iv[11],
-          ctx->symmetric_iv[12], ctx->symmetric_iv[13],
-          ctx->symmetric_iv[14], ctx->symmetric_iv[15]);
-  fp_dbg ("goodix53x5: session_key hmac_key: "
-          "%02x %02x %02x %02x %02x %02x %02x %02x "
-          "%02x %02x %02x %02x %02x %02x %02x %02x ...",
-          ctx->hmac_key[0],  ctx->hmac_key[1],
-          ctx->hmac_key[2],  ctx->hmac_key[3],
-          ctx->hmac_key[4],  ctx->hmac_key[5],
-          ctx->hmac_key[6],  ctx->hmac_key[7],
-          ctx->hmac_key[8],  ctx->hmac_key[9],
-          ctx->hmac_key[10], ctx->hmac_key[11],
-          ctx->hmac_key[12], ctx->hmac_key[13],
-          ctx->hmac_key[14], ctx->hmac_key[15]);
-  fp_dbg ("goodix53x5: session_key counters: client=0x%04x server=0x%04x",
+  fp_dbg ("goodix53x5: session_key derived: client_ctr=0x%04x server_ctr=0x%04x",
           ctx->hmac_client_counter, ctx->hmac_server_counter);
-
-  /* Dump session key to file for offline debugging */
-  {
-    FILE *f = fopen ("/tmp/goodix_session_key.bin", "wb");
-    if (f)
-      {
-        fwrite (ctx->symmetric_key, 1, GOODIX53X5_SYMMETRIC_KEY_LEN, f);
-        fwrite (ctx->symmetric_iv,  1, GOODIX53X5_SYMMETRIC_IV_LEN, f);
-        fwrite (ctx->hmac_key,      1, GOODIX53X5_HMAC_KEY_LEN, f);
-        guint16 cc = ctx->hmac_client_counter;
-        guint16 sc = ctx->hmac_server_counter;
-        fwrite (&cc, 2, 1, f);
-        fwrite (&sc, 2, 1, f);
-        fclose (f);
-        fp_dbg ("goodix53x5: dumped session key to /tmp/goodix_session_key.bin");
-      }
-  }
 }
 
 void
@@ -730,22 +647,6 @@ goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
       return FALSE;
     }
 
-  fp_dbg ("goodix53x5: decrypt_image: encrypted_msg_len=%zu, first 8 bytes: %02x %02x %02x %02x  %02x %02x %02x %02x",
-          encrypted_msg_len,
-          encrypted_msg[0], encrypted_msg[1], encrypted_msg[2], encrypted_msg[3],
-          encrypted_msg[4], encrypted_msg[5], encrypted_msg[6], encrypted_msg[7]);
-
-  /* Dump raw encrypted image to file for offline debugging */
-  {
-    FILE *f = fopen ("/tmp/goodix_encrypted_img.bin", "wb");
-    if (f)
-      {
-        fwrite (encrypted_msg, 1, encrypted_msg_len, f);
-        fclose (f);
-        fp_dbg ("goodix53x5: dumped %zu bytes to /tmp/goodix_encrypted_img.bin", encrypted_msg_len);
-      }
-  }
-
   data_type = GUINT32_FROM_LE (*(guint32 *) encrypted_msg);
   if (data_type != GOODIX53X5_IMAGE_DATA_TYPE)
     {
@@ -823,23 +724,6 @@ goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
                 g_byte_array_free (gea_data, TRUE);
                 return FALSE;
               }
-            if (block_idx == 1)
-              {
-                fp_dbg ("goodix53x5: AES block1 cipher[0..15]: "
-                        "%02x %02x %02x %02x %02x %02x %02x %02x "
-                        "%02x %02x %02x %02x %02x %02x %02x %02x",
-                        p[0],  p[1],  p[2],  p[3],
-                        p[4],  p[5],  p[6],  p[7],
-                        p[8],  p[9],  p[10], p[11],
-                        p[12], p[13], p[14], p[15]);
-                fp_dbg ("goodix53x5: AES block1 plain[0..15]: "
-                        "%02x %02x %02x %02x %02x %02x %02x %02x "
-                        "%02x %02x %02x %02x %02x %02x %02x %02x",
-                        aes_plain[0],  aes_plain[1],  aes_plain[2],  aes_plain[3],
-                        aes_plain[4],  aes_plain[5],  aes_plain[6],  aes_plain[7],
-                        aes_plain[8],  aes_plain[9],  aes_plain[10], aes_plain[11],
-                        aes_plain[12], aes_plain[13], aes_plain[14], aes_plain[15]);
-              }
             g_byte_array_append (gea_data, aes_plain, GOODIX53X5_AES_BLOCK_SIZE);
             p += GOODIX53X5_AES_BLOCK_SIZE;
           }
@@ -859,39 +743,8 @@ goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
     hmac_digest = hmac_sha256 (ctx->hmac_key, GOODIX53X5_HMAC_KEY_LEN,
                                hmac_input, 4 + tail_len);
 
-    fp_dbg ("goodix53x5: HMAC counter=0x%04x gea_len=%zu tail_off=%zu tail_len=%zu",
-            ctx->hmac_server_counter, gea_len, tail_off, tail_len);
-    fp_dbg ("goodix53x5: HMAC expected: "
-            "%02x %02x %02x %02x %02x %02x %02x %02x "
-            "%02x %02x %02x %02x %02x %02x %02x %02x "
-            "%02x %02x %02x %02x %02x %02x %02x %02x "
-            "%02x %02x %02x %02x %02x %02x %02x %02x",
-            payload_hmac[0],  payload_hmac[1],  payload_hmac[2],  payload_hmac[3],
-            payload_hmac[4],  payload_hmac[5],  payload_hmac[6],  payload_hmac[7],
-            payload_hmac[8],  payload_hmac[9],  payload_hmac[10], payload_hmac[11],
-            payload_hmac[12], payload_hmac[13], payload_hmac[14], payload_hmac[15],
-            payload_hmac[16], payload_hmac[17], payload_hmac[18], payload_hmac[19],
-            payload_hmac[20], payload_hmac[21], payload_hmac[22], payload_hmac[23],
-            payload_hmac[24], payload_hmac[25], payload_hmac[26], payload_hmac[27],
-            payload_hmac[28], payload_hmac[29], payload_hmac[30], payload_hmac[31]);
-    fp_dbg ("goodix53x5: HMAC computed: "
-            "%02x %02x %02x %02x %02x %02x %02x %02x "
-            "%02x %02x %02x %02x %02x %02x %02x %02x "
-            "%02x %02x %02x %02x %02x %02x %02x %02x "
-            "%02x %02x %02x %02x %02x %02x %02x %02x",
-            hmac_digest[0],  hmac_digest[1],  hmac_digest[2],  hmac_digest[3],
-            hmac_digest[4],  hmac_digest[5],  hmac_digest[6],  hmac_digest[7],
-            hmac_digest[8],  hmac_digest[9],  hmac_digest[10], hmac_digest[11],
-            hmac_digest[12], hmac_digest[13], hmac_digest[14], hmac_digest[15],
-            hmac_digest[16], hmac_digest[17], hmac_digest[18], hmac_digest[19],
-            hmac_digest[20], hmac_digest[21], hmac_digest[22], hmac_digest[23],
-            hmac_digest[24], hmac_digest[25], hmac_digest[26], hmac_digest[27],
-            hmac_digest[28], hmac_digest[29], hmac_digest[30], hmac_digest[31]);
-    fp_dbg ("goodix53x5: HMAC key: %02x %02x %02x %02x ...",
-            ctx->hmac_key[0], ctx->hmac_key[1], ctx->hmac_key[2], ctx->hmac_key[3]);
-    fp_dbg ("goodix53x5: HMAC input[0..7]: %02x %02x %02x %02x %02x %02x %02x %02x",
-            hmac_input[0], hmac_input[1], hmac_input[2], hmac_input[3],
-            hmac_input[4], hmac_input[5], hmac_input[6], hmac_input[7]);
+    fp_dbg ("goodix53x5: HMAC counter=0x%04x gea_len=%zu",
+            ctx->hmac_server_counter, gea_len);
 
     gboolean hmac_ok = (memcmp (hmac_digest, payload_hmac, 32) == 0);
     g_free (hmac_digest);

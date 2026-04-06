@@ -35,6 +35,12 @@
 #define GOODIX53X5_SENSOR_HEIGHT        88
 #define GOODIX53X5_SENSOR_PIXELS        (GOODIX53X5_SENSOR_WIDTH * GOODIX53X5_SENSOR_HEIGHT)
 
+/* Upscale factor applied before passing image to MINDTCT minutiae detector.
+ * The raw 108×88 sensor is too small for MINDTCT to find ≥10 minutiae
+ * (required minimum for Bozorth3 matching).  A 2× bilinear upscale gives
+ * 216×176 pixels which is sufficient. */
+#define GOODIX53X5_ENLARGE_FACTOR       2
+
 /* FDT base length (12 × 2-byte values = 24 bytes) */
 #define GOODIX53X5_FDT_BASE_LEN         24
 
