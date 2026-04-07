@@ -3,7 +3,7 @@
  * Copyright (C) 2024 libfprint contributors
  *
  * Based on the reference Python implementation by goodix-fp-dump contributors
- * https://github.com/nickel-org/goodix-fp-dump
+ * https://github.com/goodix-fp-linux-dev/goodix-fp-dump
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -141,7 +141,6 @@ typedef struct
   guint8 delta_fdt;
   guint8 delta_down;
   guint8 delta_up;
-  guint16 delta_img;
 
   guint8 fdt_base_down[GOODIX53X5_FDT_BASE_LEN];
   guint8 fdt_base_up[GOODIX53X5_FDT_BASE_LEN];

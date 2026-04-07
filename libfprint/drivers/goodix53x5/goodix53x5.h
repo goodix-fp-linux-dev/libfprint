@@ -3,7 +3,7 @@
  * Copyright (C) 2024 libfprint contributors
  *
  * Based on the reference Python implementation by goodix-fp-dump contributors
- * https://github.com/nickel-org/goodix-fp-dump
+ * https://github.com/goodix-fp-linux-dev/goodix-fp-dump
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -163,6 +163,4 @@ struct _FpiDeviceGoodix53x5
   /* PSK hash mismatch: need to write white-box PSK */
   gboolean               need_psk_write;
 
-  /* First FDT event data from finger-down (used to build fdt_base_up) */
-  guint8                 fdt_event_data[GOODIX53X5_FDT_BASE_LEN + 4]; /* 4 header bytes */
 };

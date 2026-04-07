@@ -3,7 +3,7 @@
  * Copyright (C) 2024 libfprint contributors
  *
  * Based on the reference Python implementation by goodix-fp-dump contributors
- * https://github.com/nickel-org/goodix-fp-dump
+ * https://github.com/goodix-fp-linux-dev/goodix-fp-dump
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -1516,12 +1516,7 @@ capture_ssm_state (FpiSsm   *ssm,
         gsize raw_len = 0;
         guint16 *pixels = NULL;
 
-        fp_dbg ("goodix53x5: image recv_buf len=%u, first bytes: %02x %02x %02x %02x",
-                self->recv_buf->len,
-                self->recv_buf->len > 0 ? self->recv_buf->data[0] : 0,
-                self->recv_buf->len > 1 ? self->recv_buf->data[1] : 0,
-                self->recv_buf->len > 2 ? self->recv_buf->data[2] : 0,
-                self->recv_buf->len > 3 ? self->recv_buf->data[3] : 0);
+        fp_dbg ("goodix53x5: image recv_buf len=%u", self->recv_buf->len);
 
         if (!goodix53x5_check_recv (self,
                                     GOODIX53X5_CAT_IMAGE,

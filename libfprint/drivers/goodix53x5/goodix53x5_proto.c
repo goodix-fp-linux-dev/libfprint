@@ -3,6 +3,7 @@
  * Copyright (C) 2024 libfprint contributors
  *
  * Based on the reference Python implementation by goodix-fp-dump contributors
+ * https://github.com/goodix-fp-linux-dev/goodix-fp-dump
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -189,10 +190,7 @@ goodix53x5_parse_message (const guint8  *buf,
 
   command_byte = buf[0];
   message_size = GUINT16_FROM_LE (*(guint16 *) (buf + 1));
-  /* message_size is payload_len + 1 (for checksum); actual payload starts at buf[3] */
   total_needed = 3 + (gsize) message_size;  /* cmd + size_field + payload + checksum */
-
-  fp_dbg ("goodix53x5: recv cmd=0x%02x size=%u", command_byte, message_size);
 
   /* Reassemble from chunks if needed */
   assembled = g_byte_array_new ();
@@ -314,7 +312,6 @@ goodix53x5_parse_otp (const guint8         *otp,
       calib_params->delta_fdt = 0;
       calib_params->delta_down = 0x0D;
       calib_params->delta_up = 0x0B;
-      calib_params->delta_img = 0xC8;
     }
   else
     {
@@ -323,7 +320,6 @@ goodix53x5_parse_otp (const guint8         *otp,
       calib_params->delta_fdt = tmp2 / 5;
       calib_params->delta_down = tmp2 / 3;
       calib_params->delta_up = (guint8) (calib_params->delta_down - 2);
-      calib_params->delta_img = 0xC8;
     }
 
   /* DAC values */
