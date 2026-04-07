@@ -124,6 +124,7 @@ default_drivers = [
     'upeksonly',
     'upekts',
     'goodixmoc',
+    'goodix53x5',
     'nb1010',
     'fpcmoc',
 
@@ -157,6 +158,11 @@ driver_helper_mapping = {
     'aes3500' : [ 'aeslib', 'aes3k' ],
     'aes4000' : [ 'aeslib', 'aes3k' ],
     'uru4000' : [ 'nss' ],
+    # goodix53x5 uses NSS for AES-128-CBC + HMAC-SHA256 (GTLS protocol).
+    # 'aes3k' is listed to pull in the pixman-1 dependency required by
+    # fpi_image_resize(), which is used to upscale the 108×88 sensor image
+    # before minutiae detection.
+    'goodix53x5' : [ 'nss', 'aes3k' ],
     'elanspi' : [ 'udev' ],
     'virtual_image'          : [ 'virtual' ],
     'virtual_device'         : [ 'virtual' ],
