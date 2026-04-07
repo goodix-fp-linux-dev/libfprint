@@ -86,10 +86,10 @@ const guint8 goodix53x5_otp_hash_table[256] = {
  */
 guint8 *
 goodix53x5_encode_message (guint8        category,
-                            guint8        command,
-                            const guint8 *payload,
-                            gsize         payload_len,
-                            gsize        *out_len)
+                           guint8        command,
+                           const guint8 *payload,
+                           gsize         payload_len,
+                           gsize        *out_len)
 {
   guint8 command_byte;
   guint16 size_field;
@@ -167,12 +167,12 @@ goodix53x5_encode_message (guint8        category,
  * one full message (with possible trailing zeros from a single bulk read).
  */
 gboolean
-goodix53x5_parse_message (const guint8  *buf,
-                           gsize          buf_len,
-                           guint8        *out_category,
-                           guint8        *out_command,
-                           guint8       **out_payload,
-                           gsize         *out_payload_len)
+goodix53x5_parse_message (const guint8 *buf,
+                          gsize         buf_len,
+                          guint8       *out_category,
+                          guint8       *out_command,
+                          guint8      **out_payload,
+                          gsize        *out_payload_len)
 {
   guint8 command_byte;
   guint16 message_size;
@@ -261,7 +261,7 @@ goodix53x5_parse_message (const guint8  *buf,
 
 guint8
 goodix53x5_compute_otp_hash (const guint8 *data,
-                              gsize         len)
+                             gsize         len)
 {
   guint8 checksum = 0;
 
@@ -272,8 +272,8 @@ goodix53x5_compute_otp_hash (const guint8 *data,
 }
 
 gboolean
-goodix53x5_parse_otp (const guint8         *otp,
-                      gsize                 otp_len,
+goodix53x5_parse_otp (const guint8          *otp,
+                      gsize                  otp_len,
                       Goodix53x5CalibParams *calib_params)
 {
   guint8 hash_data[64];
@@ -350,10 +350,10 @@ goodix53x5_parse_otp (const guint8         *otp,
 /* ---------- Sensor configuration ---------- */
 
 static void
-replace_value_in_section (guint8  *config,
-                           guint8   section_num,
-                           guint16  tag,
-                           guint16  value)
+replace_value_in_section (guint8 *config,
+                          guint8  section_num,
+                          guint16 tag,
+                          guint16 value)
 {
   const guint8 *section_table = config + 1;
   guint8 section_base = section_table[section_num * 2];
@@ -392,7 +392,7 @@ fix_config_checksum (guint8 *config)
 
 void
 goodix53x5_build_config (const Goodix53x5CalibParams *calib_params,
-                         guint8                       *out_config)
+                         guint8                      *out_config)
 {
   memcpy (out_config, goodix53x5_default_config, 256);
 
@@ -403,13 +403,13 @@ goodix53x5_build_config (const Goodix53x5CalibParams *calib_params,
 
   /* Patch DAC_L in sections 2, 3 */
   replace_value_in_section (out_config, 2, GOODIX53X5_CFG_DAC_L_TAG,
-                             (guint16) ((calib_params->dac_l << 4) | 8));
+                            (guint16) ((calib_params->dac_l << 4) | 8));
   replace_value_in_section (out_config, 3, GOODIX53X5_CFG_DAC_L_TAG,
-                             (guint16) ((calib_params->dac_l << 4) | 8));
+                            (guint16) ((calib_params->dac_l << 4) | 8));
 
   /* Patch DELTA_DOWN in section 2 */
   replace_value_in_section (out_config, 2, GOODIX53X5_CFG_DELTA_DOWN_TAG,
-                             (guint16) ((calib_params->delta_down << 8) | 0x80));
+                            (guint16) ((calib_params->delta_down << 8) | 0x80));
 
   fix_config_checksum (out_config);
 }
@@ -528,13 +528,13 @@ aes128_cbc_decrypt (const guint8 *key,
                     guint8       *plaintext)
 {
   PK11SlotInfo *slot = NULL;
-  PK11SymKey   *symkey = NULL;
-  SECItem       iv_item  = { siBuffer, (unsigned char *) iv, 16 };
-  SECItem      *param    = NULL;
-  PK11Context  *ctx      = NULL;
-  int           outlen   = 0;
-  unsigned int  finallen = 0;
-  gboolean      ok       = FALSE;
+  PK11SymKey *symkey = NULL;
+  SECItem iv_item  = { siBuffer, (unsigned char *) iv, 16 };
+  SECItem *param    = NULL;
+  PK11Context *ctx      = NULL;
+  int outlen   = 0;
+  unsigned int finallen = 0;
+  gboolean ok       = FALSE;
 
   slot = PK11_GetBestSlot (CKM_AES_CBC, NULL);
   if (!slot)
@@ -567,10 +567,14 @@ aes128_cbc_decrypt (const guint8 *key,
   ok = TRUE;
 
 out:
-  if (ctx)    PK11_DestroyContext (ctx, PR_TRUE);
-  if (param)  SECITEM_FreeItem (param, PR_TRUE);
-  if (symkey) PK11_FreeSymKey (symkey);
-  if (slot)   PK11_FreeSlot (slot);
+  if (ctx)
+    PK11_DestroyContext (ctx, PR_TRUE);
+  if (param)
+    SECITEM_FreeItem (param, PR_TRUE);
+  if (symkey)
+    PK11_FreeSymKey (symkey);
+  if (slot)
+    PK11_FreeSlot (slot);
   return ok;
 }
 
@@ -592,7 +596,7 @@ gea_decrypt (const guint8 *gea_key_bytes,
 
       uVar3 = (key >> 1 ^ key) & 0xFFFFFFFF;
       uVar2 = (((((((
-          (((key >> 0xF) & 0x2000) | (key & 0x1000000)) >> 1 | (key & 0x20000)) >> 2
+                      (((key >> 0xF) & 0x2000) | (key & 0x1000000)) >> 1 | (key & 0x20000)) >> 2
                     | (key & 0x1000)) >> 3 | ((key >> 7 ^ key) & 0x80000)) >> 1 |
                   ((key >> 0xF ^ key) & 0x4000)) >> 2 | (key & 0x2000)) >> 2
                 | (uVar3 & 0x40) | (key & 0x20)) >> 1 |
@@ -620,10 +624,10 @@ gea_decrypt (const guint8 *gea_key_bytes,
 
 gboolean
 goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
-                                const guint8      *encrypted_msg,
-                                gsize              encrypted_msg_len,
-                                guint8           **out_raw,
-                                gsize             *out_raw_len)
+                               const guint8      *encrypted_msg,
+                               gsize              encrypted_msg_len,
+                               guint8           **out_raw,
+                               gsize             *out_raw_len)
 {
   guint32 data_type;
   guint32 msg_length;
@@ -688,7 +692,9 @@ goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
             /* GEA block (appended as-is) */
             gsize block_size;
             if (block_idx == 0)
-              block_size = GOODIX53X5_GEA_FIRST_BLOCK_SIZE;
+              {
+                block_size = GOODIX53X5_GEA_FIRST_BLOCK_SIZE;
+              }
             else if (block_idx == GOODIX53X5_ENCRYPT_BLOCKS - 1)
               {
                 /* Last even block: take remaining payload.
@@ -704,7 +710,9 @@ goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
                 block_size = payload_len - used;
               }
             else
-              block_size = GOODIX53X5_GEA_BLOCK_SIZE;
+              {
+                block_size = GOODIX53X5_GEA_BLOCK_SIZE;
+              }
 
             g_byte_array_append (gea_data, p, (guint) block_size);
             p += block_size;
@@ -780,9 +788,9 @@ goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
      * implementation: bytes [b0,b1,b2,b3] → value = b2<<24 | b3<<16 | b0<<8 | b1
      * (each 16-bit word is byte-swapped, then the two words are big-endian). */
     reported_crc = ((guint32) gea_buf[gea_len + 2] << 24)
-                 | ((guint32) gea_buf[gea_len + 3] << 16)
-                 | ((guint32) gea_buf[gea_len + 0] << 8)
-                 |  (guint32) gea_buf[gea_len + 1];
+                   | ((guint32) gea_buf[gea_len + 3] << 16)
+                   | ((guint32) gea_buf[gea_len + 0] << 8)
+                   |  (guint32) gea_buf[gea_len + 1];
 
     /* CRC32/MPEG-2 = CRC32 with initial value 0xFFFFFFFF, no final XOR,
      * bit-reversed poly 0x04C11DB7.
@@ -821,9 +829,9 @@ goodix53x5_gtls_decrypt_image (Goodix53x5GTLSCtx *ctx,
 /* ---------- Image decoding (12-bit packed pixels) ---------- */
 
 gboolean
-goodix53x5_decode_image (const guint8  *raw,
-                         gsize          raw_len,
-                         guint16       **out_pixels)
+goodix53x5_decode_image (const guint8 *raw,
+                         gsize         raw_len,
+                         guint16     **out_pixels)
 {
   gsize n_pixels;
   guint16 *pixels;
@@ -869,7 +877,7 @@ goodix53x5_decode_image (const guint8  *raw,
 
 void
 goodix53x5_generate_fdt_base (const guint8 *fdt_data,
-                               guint8       *out_fdt_base)
+                              guint8       *out_fdt_base)
 {
   for (gsize i = 0; i < GOODIX53X5_FDT_BASE_LEN; i += 2)
     {
@@ -882,9 +890,9 @@ goodix53x5_generate_fdt_base (const guint8 *fdt_data,
 
 void
 goodix53x5_generate_fdt_up_base (const guint8                *fdt_data,
-                                  guint16                      touch_flag,
-                                  const Goodix53x5CalibParams *calib_params,
-                                  guint8                      *out_fdt_base_up)
+                                 guint16                      touch_flag,
+                                 const Goodix53x5CalibParams *calib_params,
+                                 guint8                      *out_fdt_base_up)
 {
   guint16 fdt_vals[12];
   guint16 fdt_base_up_vals[12];
@@ -916,8 +924,8 @@ goodix53x5_generate_fdt_up_base (const guint8                *fdt_data,
 
 gboolean
 goodix53x5_is_fdt_base_valid (const guint8 *fdt_data_1,
-                               const guint8 *fdt_data_2,
-                               guint8        max_delta)
+                              const guint8 *fdt_data_2,
+                              guint8        max_delta)
 {
   for (gsize i = 0; i < GOODIX53X5_FDT_BASE_LEN; i += 2)
     {

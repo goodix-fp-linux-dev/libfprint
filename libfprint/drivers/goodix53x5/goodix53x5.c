@@ -37,8 +37,8 @@
  * USB endpoint addresses (bulk)
  * ============================================================ */
 
-#define GOODIX53X5_EP_OUT  (0x03 | FPI_USB_ENDPOINT_OUT)
-#define GOODIX53X5_EP_IN   (0x81 | FPI_USB_ENDPOINT_IN)
+#define GOODIX53X5_EP_OUT (0x03 | FPI_USB_ENDPOINT_OUT)
+#define GOODIX53X5_EP_IN (0x81 | FPI_USB_ENDPOINT_IN)
 
 /* USB transfer timeout (ms) */
 #define GOODIX53X5_TIMEOUT 5000
@@ -285,7 +285,9 @@ msg_recv_cb (FpiUsbTransfer *transfer,
       gsize total_needed_raw;
 
       if (total_needed_logical <= GOODIX53X5_USB_CHUNK_SIZE)
-        total_needed_raw = GOODIX53X5_USB_CHUNK_SIZE;
+        {
+          total_needed_raw = GOODIX53X5_USB_CHUNK_SIZE;
+        }
       else
         {
           gsize remaining = total_needed_logical - GOODIX53X5_USB_CHUNK_SIZE;
@@ -352,11 +354,11 @@ goodix53x5_recv_msg (FpiDeviceGoodix53x5 *self,
  * @out_payload is heap-allocated; caller must g_free().
  */
 static gboolean
-goodix53x5_parse_recv (FpiDeviceGoodix53x5  *self,
-                       guint8               *out_category,
-                       guint8               *out_command,
-                       guint8              **out_payload,
-                       gsize                *out_payload_len)
+goodix53x5_parse_recv (FpiDeviceGoodix53x5 *self,
+                       guint8              *out_category,
+                       guint8              *out_command,
+                       guint8             **out_payload,
+                       gsize               *out_payload_len)
 {
   gboolean ok;
 
@@ -380,11 +382,11 @@ goodix53x5_parse_recv (FpiDeviceGoodix53x5  *self,
  * On mismatch the SSM is failed.
  */
 static gboolean
-goodix53x5_check_recv (FpiDeviceGoodix53x5  *self,
-                       guint8                expected_cat,
-                       guint8                expected_cmd,
-                       guint8              **out_payload,
-                       gsize                *out_payload_len)
+goodix53x5_check_recv (FpiDeviceGoodix53x5 *self,
+                       guint8               expected_cat,
+                       guint8               expected_cmd,
+                       guint8             **out_payload,
+                       gsize               *out_payload_len)
 {
   guint8 cat, cmd;
 
@@ -450,8 +452,8 @@ goodix53x5_send_mcu (FpiDeviceGoodix53x5 *self,
  */
 static guint8 *
 goodix53x5_parse_mcu_recv (FpiDeviceGoodix53x5 *self,
-                            guint32              expected_type,
-                            gsize               *out_data_len)
+                           guint32              expected_type,
+                           gsize               *out_data_len)
 {
   guint8 *payload = NULL;
   gsize payload_len = 0;
@@ -531,8 +533,8 @@ goodix53x5_prod_read (FpiDeviceGoodix53x5 *self,
  */
 static guint8 *
 goodix53x5_parse_prod_read_recv (FpiDeviceGoodix53x5 *self,
-                                  guint32              expected_type,
-                                  gsize               *out_len)
+                                 guint32              expected_type,
+                                 gsize               *out_len)
 {
   guint8 *payload = NULL;
   gsize payload_len = 0;
@@ -865,10 +867,8 @@ init_ssm_state (FpiSsm   *ssm,
 
     case INIT_WRITE_PSK_PARSE:
       if (self->need_psk_write)
-        {
-          if (!goodix53x5_parse_prod_write_recv (self))
-            break;
-        }
+        if (!goodix53x5_parse_prod_write_recv (self))
+          break;
       fpi_ssm_next_state (ssm);
       break;
 
@@ -1687,8 +1687,8 @@ goodix53x5_img_open (FpImageDevice *dev)
   if (NSS_NoDB_Init (".") != SECSuccess)
     {
       fpi_image_device_open_complete (dev,
-                                     fpi_device_error_new_msg (FP_DEVICE_ERROR_GENERAL,
-                                                               "Failed to initialise NSS"));
+                                      fpi_device_error_new_msg (FP_DEVICE_ERROR_GENERAL,
+                                                                "Failed to initialise NSS"));
       return;
     }
 
@@ -1774,16 +1774,14 @@ goodix53x5_deactivate (FpImageDevice *dev)
   self->deactivating = TRUE;
 
   if (self->ssm == NULL)
-    {
-      /* No SSM running — complete immediately */
-      fpi_image_device_deactivate_complete (dev, NULL);
-    }
+    /* No SSM running — complete immediately */
+    fpi_image_device_deactivate_complete (dev, NULL);
   /* Otherwise the running SSM will see deactivating==TRUE and finish up */
 }
 
 static void
 goodix53x5_change_state (FpImageDevice      *dev,
-                          FpiImageDeviceState state)
+                         FpiImageDeviceState state)
 {
   if (state == FPI_IMAGE_DEVICE_STATE_AWAIT_FINGER_ON)
     goodix53x5_start_capture_ssm (dev);
