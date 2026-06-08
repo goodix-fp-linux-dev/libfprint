@@ -282,14 +282,24 @@ crop_frame (guint8 * frame)
   FpImage * img = fp_image_new (GOODIX511_WIDTH, GOODIX511_HEIGHT);
 
   img->flags |= FPI_IMAGE_PARTIAL;
+
+  guint8 min_val = 255, max_val = 0;
   for (int y = 0; y != GOODIX511_HEIGHT; ++y)
-    {
-      for (int x = 0; x != GOODIX511_WIDTH; ++x)
-        {
-          const int idx = x + y * GOODIX511_SCAN_WIDTH;
-          img->data[x + y * GOODIX511_WIDTH] = frame[idx];
-        }
-    }
+    for (int x = 0; x != GOODIX511_WIDTH; ++x)
+      {
+        guint8 v = frame[x + y * GOODIX511_SCAN_WIDTH];
+        if (v < min_val) min_val = v;
+        if (v > max_val) max_val = v;
+      }
+
+  for (int y = 0; y != GOODIX511_HEIGHT; ++y)
+    for (int x = 0; x != GOODIX511_WIDTH; ++x)
+      {
+        guint8 v = frame[x + y * GOODIX511_SCAN_WIDTH];
+        img->data[x + y * GOODIX511_WIDTH] = (max_val > min_val) ?
+          (guint8)((v - min_val) * 255 / (max_val - min_val)) : v;
+      }
+
   return img;
 }
 
@@ -323,7 +333,7 @@ fpi_device_goodixtls511_class_init (FpiDeviceGoodixTls511Class * class)
 
   dev_class->scan_type = FP_SCAN_TYPE_PRESS;
 
-  // TODO
+  img_dev_class->algorithm = FPI_DEVICE_ALGO_SIGFM;
   img_dev_class->bz3_threshold = 24;
   img_dev_class->img_width = GOODIX511_WIDTH;
   img_dev_class->img_height = GOODIX511_HEIGHT;
