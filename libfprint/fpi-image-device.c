@@ -22,6 +22,7 @@
 
 #include "fp-image-device-private.h"
 #include "fp-image-device.h"
+#include "fpi-print.h"
 
 /**
  * SECTION: fpi-image-device
@@ -276,7 +277,7 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
   if (!error)
     {
       print = fp_print_new (device);
-      fpi_print_set_type (print, FPI_PRINT_NBIS);
+      fpi_print_set_type (print, priv->algorithm);
       if (!fpi_print_add_from_image (print, image, &error))
         {
           g_clear_object (&print);
@@ -322,7 +323,9 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
       FpiMatchResult result;
 
       fpi_device_get_verify_data (device, &template);
-      if (print)
+      if (print && priv->algorithm == FPI_PRINT_SIGFM)
+        result = fpi_print_sigfm_match (template, print, priv->bz3_threshold, &error);
+      else if (print)
         result = fpi_print_bz3_match (template, print, priv->bz3_threshold, &error);
       else
         result = FPI_MATCH_ERROR;
@@ -342,8 +345,14 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
       for (i = 0; !error && i < templates->len; i++)
         {
           FpPrint *template = g_ptr_array_index (templates, i);
+          FpiMatchResult match;
 
-          if (fpi_print_bz3_match (template, print, priv->bz3_threshold, &error) == FPI_MATCH_SUCCESS)
+          if (priv->algorithm == FPI_PRINT_SIGFM)
+            match = fpi_print_sigfm_match (template, print, priv->bz3_threshold, &error);
+          else
+            match = fpi_print_bz3_match (template, print, priv->bz3_threshold, &error);
+
+          if (match == FPI_MATCH_SUCCESS)
             {
               result = template;
               break;
@@ -494,12 +503,22 @@ fpi_image_device_image_captured (FpImageDevice *self, FpImage *image)
 
   priv->minutiae_scan_active = TRUE;
 
-  /* XXX: We also detect minutiae in capture mode, we solely do this
-   *      to normalize the image which will happen as a by-product. */
-  fp_image_detect_minutiae (image,
-                            fpi_device_get_cancellable (FP_DEVICE (self)),
-                            fpi_image_device_minutiae_detected,
-                            self);
+  if (priv->algorithm == FPI_PRINT_SIGFM)
+    {
+      fp_image_extract_sigfm_info (image,
+                                   fpi_device_get_cancellable (FP_DEVICE (self)),
+                                   fpi_image_device_minutiae_detected,
+                                   self);
+    }
+  else
+    {
+      /* XXX: We also detect minutiae in capture mode, we solely do this
+       *      to normalize the image which will happen as a by-product. */
+      fp_image_detect_minutiae (image,
+                                fpi_device_get_cancellable (FP_DEVICE (self)),
+                                fpi_image_device_minutiae_detected,
+                                self);
+    }
 
   /* XXX: This is wrong if we add support for raw capture mode. */
   fp_image_device_change_state (self, FPI_IMAGE_DEVICE_STATE_AWAIT_FINGER_OFF);

@@ -21,6 +21,7 @@
 
 #include "fpi-device.h"
 #include "fp-image-device.h"
+#include "fpi-print.h"
 
 /**
  * FpiImageDeviceState:
@@ -71,8 +72,24 @@ typedef enum {
 } FpiImageDeviceState;
 
 /**
+ * FpiImageDeviceAlgorithm:
+ * @FPI_DEVICE_ALGO_NBIS: NBIS minutiae extraction and bozorth3 matching (default)
+ * @FPI_DEVICE_ALGO_SIGFM: SIGFM keypoint/descriptor extraction and matching,
+ *   intended for low-resolution sensors where NBIS minutiae are unreliable.
+ *
+ * Selects the matching algorithm used by the image device. Set via the
+ * @algorithm field of #FpImageDeviceClass.
+ */
+typedef enum {
+  FPI_DEVICE_ALGO_NBIS  = FPI_PRINT_NBIS,
+  FPI_DEVICE_ALGO_SIGFM = FPI_PRINT_SIGFM,
+} FpiImageDeviceAlgorithm;
+
+/**
  * FpImageDeviceClass:
- * @bz3_threshold: Threshold to consider bozorth3 score a match, default: 40
+ * @bz3_threshold: Threshold to consider a match (bozorth3 score for NBIS,
+ *   matched-pair count for SIGFM), default: 40
+ * @algorithm: Matching algorithm to use, default: %FPI_DEVICE_ALGO_NBIS
  * @img_width: Width of the image, only provide if constant
  * @img_height: Height of the image, only provide if constant
  * @img_open: Open the device and do basic initialization
@@ -107,6 +124,7 @@ struct _FpImageDeviceClass
   gint          bz3_threshold;
   gint          img_width;
   gint          img_height;
+  FpiImageDeviceAlgorithm algorithm;
 
   void          (*img_open)     (FpImageDevice *dev);
   void          (*img_close)    (FpImageDevice *dev);

@@ -22,6 +22,8 @@
 
 #include <gio/gio.h>
 
+#include "sigfm/sigfm.h"
+
 G_BEGIN_DECLS
 
 #define FP_TYPE_IMAGE (fp_image_get_type ())
@@ -46,6 +48,13 @@ void          fp_image_detect_minutiae (FpImage            *self,
 gboolean      fp_image_detect_minutiae_finish (FpImage      *self,
                                                GAsyncResult *result,
                                                GError      **error);
+
+void          fp_image_extract_sigfm_info (FpImage            *self,
+                                           GCancellable       *cancellable,
+                                           GAsyncReadyCallback callback,
+                                           gpointer            user_data);
+
+SigfmImgInfo *fp_image_get_sigfm_info (FpImage *self);
 
 const guchar * fp_image_get_data (FpImage *self,
                                   gsize   *len);

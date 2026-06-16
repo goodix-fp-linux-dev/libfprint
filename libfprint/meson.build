@@ -141,6 +141,8 @@ driver_sources = {
         [ 'drivers/goodixmoc/goodix.c', 'drivers/goodixmoc/goodix_proto.c' ],
     'goodixtls511' :
         [ 'drivers/goodixtls/goodix511.c' ],
+    'goodixtls5f10' :
+        [ 'drivers/goodixtls/goodix5f10.c' ],
     'fpcmoc' :
         [ 'drivers/fpcmoc/fpc.c' ],
 }
@@ -228,6 +230,8 @@ deps = [
     mathlib_dep,
 ] + optional_deps
 
+subdir('sigfm')
+
 # These are empty and only exist so that the include directories are created
 # in the build tree. This silences a build time warning.
 subdir('nbis/include')
@@ -256,7 +260,7 @@ libfprint_private = static_library('fprint-private',
         libfprint_private_sources,
     ],
     dependencies: deps,
-    link_with: libnbis,
+    link_with: [libnbis, libsigfm],
     install: false)
 
 libfprint_drivers = static_library('fprint-drivers',

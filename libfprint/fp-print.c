@@ -23,6 +23,7 @@
 #include "fp-print-private.h"
 #include "fpi-compat.h"
 #include "fpi-log.h"
+#include "sigfm/sigfm.h"
 
 /**
  * SECTION: fp-print
@@ -714,6 +715,30 @@ fp_print_serialize (FpPrint *print,
       g_variant_builder_close (&nested);
       g_variant_builder_add (&builder, "v", g_variant_builder_end (&nested));
     }
+  else if (print->type == FPI_PRINT_SIGFM)
+    {
+      GVariantBuilder nested = G_VARIANT_BUILDER_INIT (G_VARIANT_TYPE ("(a(ay))"));
+      guint i;
+
+      g_variant_builder_open (&nested, G_VARIANT_TYPE ("a(ay)"));
+      for (i = 0; i < print->prints->len; i++)
+        {
+          SigfmImgInfo *info = g_ptr_array_index (print->prints, i);
+          int slen = 0;
+          unsigned char *serialized = sigfm_serialize_binary (info, &slen);
+
+          g_variant_builder_open (&nested, G_VARIANT_TYPE ("(ay)"));
+          g_variant_builder_add_value (&nested,
+                                       g_variant_new_fixed_array (G_VARIANT_TYPE_BYTE,
+                                                                  serialized, slen,
+                                                                  sizeof (unsigned char)));
+          g_variant_builder_close (&nested);
+          free (serialized);
+        }
+
+      g_variant_builder_close (&nested);
+      g_variant_builder_add (&builder, "v", g_variant_builder_end (&nested));
+    }
   else
     {
       g_variant_builder_add (&builder, "v", g_variant_new_variant (print->data));
@@ -868,6 +893,39 @@ fp_print_deserialize (const guchar *data,
           memcpy (xyt->thetacol, thetacol, sizeof (xcol[0]) * xlen);
 
           g_ptr_array_add (result->prints, g_steal_pointer (&xyt));
+        }
+    }
+  else if (type == FPI_PRINT_SIGFM)
+    {
+      g_autoptr(GVariant) prints = g_variant_get_child_value (print_data, 0);
+      guint i;
+
+      result = g_object_new (FP_TYPE_PRINT,
+                             "driver", driver,
+                             "device-id", device_id,
+                             "device-stored", device_stored,
+                             NULL);
+      g_object_ref_sink (result);
+      fpi_print_set_type (result, FPI_PRINT_SIGFM);
+      for (i = 0; i < g_variant_n_children (prints); i++)
+        {
+          g_autoptr(GVariant) sigfm_data = NULL;
+          GVariant *child;
+          const unsigned char *serialized;
+          gsize slen;
+          SigfmImgInfo *info;
+
+          sigfm_data = g_variant_get_child_value (prints, i);
+
+          child = g_variant_get_child_value (sigfm_data, 0);
+          serialized = g_variant_get_fixed_array (child, &slen, sizeof (unsigned char));
+          info = sigfm_deserialize_binary (serialized, slen);
+          g_variant_unref (child);
+
+          if (!info)
+            goto invalid_format;
+
+          g_ptr_array_add (result->prints, info);
         }
     }
   else if (type == FPI_PRINT_RAW)
