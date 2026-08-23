@@ -275,6 +275,27 @@ void goodix_send_mcu_get_image (FpDevice           *dev,
                                 gpointer            user_data);
 
 /**
+ * @brief Like goodix_send_mcu_get_image(), but for devices whose
+ * mcu_get_image request is a 4-byte (flags, 0x06, gain, 0x00) payload
+ * instead of a bare 1-byte flag. @flags distinguishes a no-finger
+ * calibration request from a live capture request on these devices (the
+ * exact values are device-specific; see the driver that calls this).
+ * Checkout goodix_tls_read_image_gain() if you want an image from the
+ * device -- same reasoning as goodix_send_mcu_get_image()'s doc comment.
+ *
+ * @param dev
+ * @param flags
+ * @param gain
+ * @param callback
+ * @param user_data
+ */
+void goodix_send_mcu_get_image_gain (FpDevice           *dev,
+                                     guint8               flags,
+                                     guint8               gain,
+                                     GoodixImageCallback callback,
+                                     gpointer            user_data);
+
+/**
  * @brief Tell the device we want to wait for the user to present their finger
  *
  * @param dev
@@ -566,5 +587,22 @@ gboolean goodix_shutdown_tls (FpDevice *dev,
 void goodix_tls_read_image (FpDevice           *dev,
                             GoodixImageCallback callback,
                             gpointer            user_data);
+
+/**
+ * @brief Like goodix_tls_read_image(), but using
+ * goodix_send_mcu_get_image_gain() instead of goodix_send_mcu_get_image()
+ * to request the frame.
+ *
+ * @param dev
+ * @param flags
+ * @param gain
+ * @param callback Called when the image is decrypted
+ * @param user_data
+ */
+void goodix_tls_read_image_gain (FpDevice           *dev,
+                                 guint8               flags,
+                                 guint8               gain,
+                                 GoodixImageCallback callback,
+                                 gpointer            user_data);
 
 // ---- TLS SECTION END ----

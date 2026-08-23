@@ -37,6 +37,7 @@ drivers_tests = [
     'vfs5011',
     'vfs7552',
     'goodixmoc',
+    'goodix533c',
     'nb1010',
     'egis0570',
     'fpcmoc',

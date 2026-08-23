@@ -83,6 +83,17 @@ struct _FpiDeviceGoodixTls5xxClass
   const guint8 * psk;
 
   int            reset_number; ///< only needed if goodixtls5xx_check_reset() is used
+
+  /// Some devices (e.g. 533c) need a 4-byte mcu_get_image request
+  /// (flags, 0x06, gain, 0x00) rather than the 1-byte request the rest of
+  /// this family uses -- set TRUE to opt in. When TRUE, image_gain is the
+  /// gain byte used for both the calibration and the live capture request
+  /// (this device family flat-fields the live frame against a calibration
+  /// frame captured at the same gain, so a single fixed gain is used for
+  /// both). Defaults to FALSE / 0, which reproduces this class's exact
+  /// prior behavior for drivers that do not set these.
+  gboolean       use_gain_image_request;
+  guint8         image_gain;
 };
 
 /**

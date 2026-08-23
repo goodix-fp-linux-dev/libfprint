@@ -82,6 +82,25 @@ static void on_calibrate_scan(FpDevice* dev, guint8* data, guint16 len, gpointer
 
   fpi_ssm_next_state(ssm);
 }
+/* mcu_get_image request flags for a no-finger calibration frame vs. a
+ * live/finger-present frame, for devices with use_gain_image_request set
+ * (see goodix5xx.h's doc comment on that field). Device-specific, not a
+ * generic protocol constant -- currently only meaningful for 533c. */
+#define GOODIX_IMAGE_FLAGS_CALIBRATE 0x01
+#define GOODIX_IMAGE_FLAGS_SCAN      0x41
+
+static void
+read_image (FpDevice *dev, guint8 flags, GoodixImageCallback callback,
+           gpointer user_data)
+{
+  FpiDeviceGoodixTls5xxClass *cls = FPI_DEVICE_GOODIXTLS5XX_GET_CLASS (dev);
+
+  if (cls->use_gain_image_request)
+    goodix_tls_read_image_gain (dev, flags, cls->image_gain, callback, user_data);
+  else
+    goodix_tls_read_image (dev, callback, user_data);
+}
+
 static void calibrate_run(FpiSsm* ssm, FpDevice* dev) {
   switch (fpi_ssm_get_cur_state(ssm)) {
     case CALIBRATION_STAGE_FDT_UP:
@@ -91,7 +110,7 @@ static void calibrate_run(FpiSsm* ssm, FpDevice* dev) {
       goodix_send_nav_0(dev, goodixtls5xx_check_none_cmd, ssm);
       break;
     case CALIBRATION_STAGE_GET_IMG:
-      goodix_tls_read_image(dev, on_calibrate_scan, ssm);
+      read_image (dev, GOODIX_IMAGE_FLAGS_CALIBRATE, on_calibrate_scan, ssm);
   }
 }
 
@@ -360,7 +379,7 @@ query_mcu_state_cb (FpDevice * dev, guchar * mcu_state, guint16 len,
 static void
 scan_get_img (FpDevice * dev, FpiSsm * ssm)
 {
-  goodix_tls_read_image (dev, scan_on_read_img, ssm);
+  read_image (dev, GOODIX_IMAGE_FLAGS_SCAN, scan_on_read_img, ssm);
 }
 
 

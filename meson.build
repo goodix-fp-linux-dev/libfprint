@@ -132,6 +132,13 @@ default_drivers = [
     'elanspi',
 ]
 
+# Not in default_drivers: pulls in OpenCV (see driver_helper_mapping's
+# 'sigfm' helper below), which the rest of default_drivers does not
+# require. Opt in explicitly with -Ddrivers=goodix533c or -Ddrivers=all.
+all_drivers_only = [
+    'goodix533c',
+]
+
 # FIXME: All the drivers should be fixed by adjusting the byte order.
 # See https://gitlab.freedesktop.org/libfprint/libfprint/-/issues/236
 endian_independent_drivers = virtual_drivers + [
@@ -139,7 +146,7 @@ endian_independent_drivers = virtual_drivers + [
     'synaptics',
 ]
 
-all_drivers = default_drivers + virtual_drivers
+all_drivers = default_drivers + virtual_drivers + all_drivers_only
 
 if drivers == [ 'all' ]
     drivers = all_drivers
@@ -160,6 +167,7 @@ driver_helper_mapping = {
     'uru4000' : [ 'nss' ],
     'elanspi' : [ 'udev' ],
     'goodixtls511' : [ 'goodixtls' ],
+    'goodix533c' : [ 'goodixtls', 'sigfm' ],
     'virtual_image'          : [ 'virtual' ],
     'virtual_device'         : [ 'virtual' ],
     'virtual_device_storage' : [ 'virtual' ],
@@ -197,6 +205,12 @@ udev_rules = get_option('udev_rules')
 install_udev_rules = udev_rules.enabled()
 
 optional_deps = []
+
+# Set (and libsigfm declared) only when the 'sigfm' helper below actually
+# runs, i.e. only when a driver that needs it (goodix533c) is enabled --
+# OpenCV must never become a dependency of the whole libfprint build just
+# because *some* driver happens to use SIGFM matching.
+have_sigfm = false
 
 # Resolve extra dependencies
 foreach i : driver_helpers
@@ -245,6 +259,42 @@ foreach i : driver_helpers
         libfprint_conf.set10('HAVE_UDEV', true)
 
         optional_deps += gudev_dep
+    elif i == 'sigfm'
+        have_sigfm = true
+
+        # SIGFM: SIFT-based fingerprint matching for small sensors (used by
+        # goodix533c's enroll/verify/identify). Use pkg-config only for the
+        # include path; link only the specific OpenCV modules needed (the
+        # full opencv pkg-config pulls in modules like viz/hdf that can have
+        # missing transitive deps on some distros).
+        opencv_pc = dependency('opencv5', required: false)
+        if not opencv_pc.found()
+            opencv_pc = dependency('opencv4', required: false)
+        endif
+        if not opencv_pc.found()
+            error('opencv (opencv5 or opencv4) is required for @0@ and possibly others'.format(driver))
+        endif
+        opencv_includes = opencv_pc.partial_dependency(compile_args: true, includes: true)
+
+        opencv_core = cpp.find_library('opencv_core')
+        # OpenCV 5 renamed the features2d module to features.
+        opencv_features2d = cpp.find_library('opencv_features2d', required: false)
+        if not opencv_features2d.found()
+            opencv_features2d = cpp.find_library('opencv_features')
+        endif
+        opencv_flann = cpp.find_library('opencv_flann')
+        opencv_imgproc = cpp.find_library('opencv_imgproc')
+
+        opencv_dep = declare_dependency(
+            dependencies: [opencv_includes, opencv_core, opencv_features2d, opencv_flann, opencv_imgproc],
+        )
+        optional_deps += opencv_dep
+
+        libsigfm = static_library('sigfm',
+            'sigfm/sigfm.cpp',
+            dependencies: [opencv_dep],
+            cpp_args: ['-std=c++17'],
+            install: false)
     endif
 endforeach
 

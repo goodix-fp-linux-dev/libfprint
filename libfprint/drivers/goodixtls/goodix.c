@@ -642,6 +642,32 @@ goodix_send_mcu_get_image (FpDevice *dev, GoodixImageCallback callback,
 }
 
 void
+goodix_send_mcu_get_image_gain (FpDevice *dev, guint8 flags, guint8 gain,
+                                GoodixImageCallback callback,
+                                gpointer user_data)
+{
+  guint8 payload[4] = {flags, 0x06, gain, 0x00};
+  GoodixCallbackInfo *cb_info;
+
+  if (callback)
+    {
+      cb_info = malloc (sizeof (GoodixCallbackInfo));
+
+      cb_info->callback = G_CALLBACK (callback);
+      cb_info->user_data = user_data;
+
+      goodix_send_protocol (dev, GOODIX_CMD_MCU_GET_IMAGE, payload,
+                            sizeof (payload), NULL, TRUE, GOODIX_TIMEOUT, TRUE,
+                            goodix_receive_default, cb_info);
+      return;
+    }
+
+  goodix_send_protocol (dev, GOODIX_CMD_MCU_GET_IMAGE, payload,
+                        sizeof (payload), NULL, TRUE, GOODIX_TIMEOUT, TRUE,
+                        NULL, NULL);
+}
+
+void
 goodix_send_mcu_switch_to_fdt_down (FpDevice *dev, const guint8 *mode, guint16 length,
                                     GDestroyNotify free_func,
                                     GoodixDefaultCallback callback,
@@ -1487,6 +1513,20 @@ goodix_tls_read_image (FpDevice *dev, GoodixImageCallback callback,
   cb_info->user_data = user_data;
 
   goodix_send_mcu_get_image (dev, goodix_tls_ready_image_handler, cb_info);
+}
+
+void
+goodix_tls_read_image_gain (FpDevice *dev, guint8 flags, guint8 gain,
+                            GoodixImageCallback callback, gpointer user_data)
+{
+  g_assert (callback);
+  GoodixCallbackInfo *cb_info = malloc (sizeof (GoodixCallbackInfo));
+
+  cb_info->callback = G_CALLBACK (callback);
+  cb_info->user_data = user_data;
+
+  goodix_send_mcu_get_image_gain (dev, flags, gain,
+                                  goodix_tls_ready_image_handler, cb_info);
 }
 
 // ---- TLS SECTION END ----
