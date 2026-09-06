@@ -1702,6 +1702,7 @@ fpi_device_elanspi_class_init (FpiDeviceElanSpiClass *klass)
   dev_class->nr_enroll_stages = 7;       /* these sensors are very hit or miss, may as well record a few extras */
 
   img_class->bz3_threshold = 24;
+  img_class->algorithm = FPI_DEVICE_ALGO_SIGFM;
   img_class->img_open = elanspi_open;
   img_class->activate = elanspi_activate;
   img_class->deactivate = elanspi_deactivate;
