@@ -8,6 +8,7 @@ This is an experimental libfprint driver implementation for Goodix drivers.
 
 Currently in the works:
 - 27c6x5110 (80x64 resolution)
+- 27c6:5e0a (Goodix TLS, 64x80 native / 128x160 scaled, e.g. Realme Book)
 
 *LibFPrint is part of the **[FPrint][Website]** project.*
 

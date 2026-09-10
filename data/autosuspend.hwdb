@@ -190,6 +190,11 @@ usb:v27C6p6A94*
  ID_AUTOSUSPEND=1
  ID_PERSIST=0
 
+# Supported by libfprint driver goodixtls5e0a
+usb:v27C6p5E0A*
+ ID_AUTOSUSPEND=1
+ ID_PERSIST=0
+
 # Supported by libfprint driver nb1010
 usb:v298Dp1010*
  ID_AUTOSUSPEND=1
@@ -367,7 +372,6 @@ usb:v27C6p55A2*
 usb:v27C6p55A4*
 usb:v27C6p55B4*
 usb:v27C6p5740*
-usb:v27C6p5E0A*
 usb:v27C6p581A*
 usb:v2808p9338*
 usb:v2808p93A9*
