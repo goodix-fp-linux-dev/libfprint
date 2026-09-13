@@ -340,6 +340,8 @@ static const struct elanspi_regtable elanspi_calibration_table_new_page1 = {
 
 // using checkargs ACPI:HIDPID
 static const FpIdEntry elanspi_id_table[] = {
+  {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x3128}, .driver_data = ELANSPI_180_ROTATE},
+  {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN70A1", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x322d}, .driver_data = ELANSPI_90LEFT_ROTATE},
   {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x3057}, .driver_data = ELANSPI_180_ROTATE},
   {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x3087}, .driver_data = ELANSPI_180_ROTATE},
   {.udev_types = ELANSPI_UDEV_TYPES, .spi_acpi_id = "ELAN7001", .hid_id = {.vid = ELANSPI_TP_VID, .pid = 0x30c6}, .driver_data = ELANSPI_180_ROTATE},
@@ -362,17 +364,18 @@ static const FpIdEntry elanspi_id_table[] = {
 #define ELANSPI_MIN_EMPTY_INVALID_PERCENT 6
 #define ELANSPI_MAX_REAL_INVALID_PERCENT 3
 
-#define ELANSPI_MIN_REAL_STDDEV (592 * 592)
-#define ELANSPI_MAX_EMPTY_STDDEV (350 * 350)
+#define ELANSPI_MIN_REAL_STDDEV (250 * 250)
+#define ELANSPI_MAX_EMPTY_STDDEV (180 * 180)
 
 #define ELANSPI_MIN_FRAMES_DEBOUNCE 2
 
 #define ELANSPI_SWIPE_FRAMES_DISCARD 1
-#define ELANSPI_MIN_FRAMES_SWIPE (7 + ELANSPI_SWIPE_FRAMES_DISCARD)
-#define ELANSPI_MAX_FRAMES_SWIPE (20 + ELANSPI_SWIPE_FRAMES_DISCARD)
+#define ELANSPI_MIN_FRAMES_SWIPE (2 + ELANSPI_SWIPE_FRAMES_DISCARD)
+#define ELANSPI_MAX_FRAMES_SWIPE (12 + ELANSPI_SWIPE_FRAMES_DISCARD)
 
 #define ELANSPI_MAX_FRAME_HEIGHT 43
-#define ELANSPI_MIN_FRAME_TO_FRAME_DIFF (250 * 250)
+#define ELANSPI_MIN_FRAME_TO_FRAME_DIFF_VERIFY (100 * 100)
+#define ELANSPI_MIN_FRAME_TO_FRAME_DIFF_ENROLL (100 * 100)
 
 #define ELANSPI_HV_SENSOR_FRAME_DELAY 23
 
