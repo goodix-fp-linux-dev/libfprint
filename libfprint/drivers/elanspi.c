@@ -1195,6 +1195,59 @@ elanspi_lookup_pixel_with_rotation (FpiDeviceElanSpi *self, const guint16 *data_
   return data_in[y1 * self->sensor_width + x1];
 }
 
+/* Dynamic action helpers to distinguish Enrollment vs. Verification/Identification */
+static inline FpiDeviceAction
+elanspi_get_action (FpiDeviceElanSpi *self)
+{
+  return fpi_device_get_current_action (FP_DEVICE (self));
+}
+
+static inline gboolean
+elanspi_is_enroll_action (FpiDeviceElanSpi *self)
+{
+  return elanspi_get_action (self) == FPI_DEVICE_ACTION_ENROLL;
+}
+
+static inline guint
+elanspi_get_min_frames (FpiDeviceElanSpi *self)
+{
+  if (elanspi_is_enroll_action (self))
+    return ELANSPI_ENROLL_MIN_FRAMES + ELANSPI_ENROLL_SWIPE_DISCARD;
+  return ELANSPI_VERIFY_MIN_FRAMES + ELANSPI_VERIFY_SWIPE_DISCARD;
+}
+
+static inline guint
+elanspi_get_max_frames (FpiDeviceElanSpi *self)
+{
+  if (elanspi_is_enroll_action (self))
+    return ELANSPI_ENROLL_MAX_FRAMES + ELANSPI_ENROLL_SWIPE_DISCARD;
+  return ELANSPI_VERIFY_MAX_FRAMES + ELANSPI_VERIFY_SWIPE_DISCARD;
+}
+
+static inline gint64
+elanspi_get_min_frame_diff (FpiDeviceElanSpi *self)
+{
+  if (elanspi_is_enroll_action (self))
+    return ELANSPI_ENROLL_MIN_FRAME_DIFF;
+  return ELANSPI_VERIFY_MIN_FRAME_DIFF;
+}
+
+static inline guint
+elanspi_get_swipe_frames_discard (FpiDeviceElanSpi *self)
+{
+  if (elanspi_is_enroll_action (self))
+    return ELANSPI_ENROLL_SWIPE_DISCARD;
+  return ELANSPI_VERIFY_SWIPE_DISCARD;
+}
+
+static inline gint64
+elanspi_get_min_real_stddev (FpiDeviceElanSpi *self)
+{
+  if (elanspi_is_enroll_action (self))
+    return ELANSPI_ENROLL_MIN_REAL_STDDEV;
+  return ELANSPI_VERIFY_MIN_REAL_STDDEV;
+}
+
 static enum elanspi_guess_result
 elanspi_guess_image (FpiDeviceElanSpi *self, guint16 *raw_image)
 {
@@ -1234,7 +1287,7 @@ elanspi_guess_image (FpiDeviceElanSpi *self, guint16 *raw_image)
   if (invalid_percent > ELANSPI_MIN_EMPTY_INVALID_PERCENT)
     is_empty += 1;
 
-  if (sq_stddev > ELANSPI_MIN_REAL_STDDEV)
+  if (sq_stddev > elanspi_get_min_real_stddev (self))
     is_fp += 1;
   if (sq_stddev < ELANSPI_MAX_EMPTY_STDDEV)
     is_empty += 1;
@@ -1385,21 +1438,32 @@ elanspi_fp_frame_stitch_and_submit (FpiDeviceElanSpi *self)
   };
 
   /* stitch image */
-  GSList *frame_start = g_slist_nth (self->fp_frame_list, ELANSPI_SWIPE_FRAMES_DISCARD);
+  guint discard = elanspi_get_swipe_frames_discard (self);
+  if (discard >= g_slist_length (self->fp_frame_list))
+    discard = 0;
+  GSList *frame_start = g_slist_nth (self->fp_frame_list, discard);
 
   fpi_do_movement_estimation (&assembling_ctx, frame_start);
   img = fpi_assemble_frames (&assembling_ctx, frame_start);
 
-  /* The assembled image is used at native scale: its ~10px ridge period is
-   * already in the matcher's expected band, and a 2x upscale only starves
-   * feature extraction. FPI_IMAGE_PARTIAL is not set since on these narrow
-   * strips it would cull most minutiae as perimeter points. Light smoothing
-   * suppresses sensor noise that otherwise creates spurious features. */
-  elanspi_smooth_image (img);
-  img->flags |= FPI_IMAGE_COLORS_INVERTED;
+  if (img)
+    {
+      /* The assembled image is used at native scale: its ~10px ridge period is
+       * already in the matcher's expected band, and a 2x upscale only starves
+       * feature extraction. FPI_IMAGE_PARTIAL is not set since on these narrow
+       * strips it would cull most minutiae as perimeter points. Light smoothing
+       * suppresses sensor noise that otherwise creates spurious features. */
+      elanspi_smooth_image (img);
+      img->flags |= FPI_IMAGE_COLORS_INVERTED;
 
-  /* submit image */
-  fpi_image_device_image_captured (FP_IMAGE_DEVICE (self), g_steal_pointer (&img));
+      /* submit image */
+      fpi_image_device_image_captured (FP_IMAGE_DEVICE (self), g_steal_pointer (&img));
+    }
+  else
+    {
+      fp_warn ("<stitch> frame assembly failed to produce an image");
+      fpi_image_device_retry_scan (FP_IMAGE_DEVICE (self), FP_DEVICE_RETRY_GENERAL);
+    }
 
   /* clean out frame data */
   g_slist_free_full (g_steal_pointer (&self->fp_frame_list), g_free);
@@ -1445,14 +1509,16 @@ elanspi_fp_frame_handler (FpiSsm *ssm, FpiDeviceElanSpi *self)
       if (self->fp_empty_counter > 1)
         {
           fp_dbg ("<fp_frame> have enough debounce");
-          if (g_slist_length (self->fp_frame_list) >= ELANSPI_MIN_FRAMES_SWIPE)
+          if (g_slist_length (self->fp_frame_list) >= elanspi_get_min_frames (self))
             {
-              fp_dbg ("<fp_frame> have enough frames, submitting");
+              fp_dbg ("<fp_frame> have enough frames (%u >= %u), submitting",
+                      g_slist_length (self->fp_frame_list), elanspi_get_min_frames (self));
               elanspi_fp_frame_stitch_and_submit (self);
             }
           else
             {
-              fp_dbg ("<fp_frame> not enough frames, reporting short swipe");
+              fp_dbg ("<fp_frame> not enough frames (%u < %u), reporting short swipe",
+                      g_slist_length (self->fp_frame_list), elanspi_get_min_frames (self));
               fpi_image_device_retry_scan (FP_IMAGE_DEVICE (self), FP_DEVICE_RETRY_TOO_SHORT);
             }
           goto finish_capture;
@@ -1475,9 +1541,10 @@ elanspi_fp_frame_handler (FpiSsm *ssm, FpiDeviceElanSpi *self)
             }
         }
 
-      if (g_slist_length (self->fp_frame_list) > ELANSPI_MAX_FRAMES_SWIPE)
+      if (g_slist_length (self->fp_frame_list) >= elanspi_get_max_frames (self))
         {
-          fp_dbg ("<fp_frame> have enough frames, exiting now");
+          fp_dbg ("<fp_frame> reached max frames (%u >= %u), exiting now",
+                  g_slist_length (self->fp_frame_list), elanspi_get_max_frames (self));
           elanspi_fp_frame_stitch_and_submit (self);
           goto finish_capture;
         }
@@ -1490,8 +1557,9 @@ elanspi_fp_frame_handler (FpiSsm *ssm, FpiDeviceElanSpi *self)
       if (self->fp_frame_list)
         {
           gint difference = elanspi_get_frame_diff_stddev_sq (self, self->last_image, self->prev_frame_image);
-          fp_dbg ("<fp_frame> diff = %d", difference);
-          if (difference < ELANSPI_MIN_FRAME_TO_FRAME_DIFF)
+          fp_dbg ("<fp_frame> diff = %d (min required = %" G_GINT64_FORMAT ")",
+                  difference, elanspi_get_min_frame_diff (self));
+          if (difference < elanspi_get_min_frame_diff (self))
             {
               fp_dbg ("<fp_frame> ignoring b.c. difference is too small");
               break;

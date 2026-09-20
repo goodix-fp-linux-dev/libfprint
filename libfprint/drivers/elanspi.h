@@ -360,22 +360,33 @@ static const FpIdEntry elanspi_id_table[] = {
 
 #define ELANSPI_HV_CALIBRATION_TARGET_MEAN 3000
 
-#define ELANSPI_MIN_EMPTY_INVALID_PERCENT 35
-#define ELANSPI_MAX_REAL_INVALID_PERCENT 30
+/* =========================================================================
+ * Adaptive Tuning for Enrollment vs. Verification
+ * ========================================================================= */
 
-#define ELANSPI_MIN_REAL_STDDEV (592 * 592)
-#define ELANSPI_MAX_EMPTY_STDDEV (350 * 350)
+/* --- Enrollment Parameters (Strict, High Quality, Rich Composite) --- */
+#define ELANSPI_ENROLL_MIN_FRAMES            6
+#define ELANSPI_ENROLL_MAX_FRAMES            16
+#define ELANSPI_ENROLL_MIN_FRAME_DIFF        (50 * 50)
+#define ELANSPI_ENROLL_SWIPE_DISCARD         0
+#define ELANSPI_ENROLL_MIN_REAL_STDDEV       (450 * 450)
 
-#define ELANSPI_MIN_FRAMES_DEBOUNCE 2
+/* --- Verification / Identification Parameters (Fast, Lenient, Quick Swipe) --- */
+#define ELANSPI_VERIFY_MIN_FRAMES            2
+#define ELANSPI_VERIFY_MAX_FRAMES            6
+#define ELANSPI_VERIFY_MIN_FRAME_DIFF        (15 * 15)
+#define ELANSPI_VERIFY_SWIPE_DISCARD         0
+#define ELANSPI_VERIFY_MIN_REAL_STDDEV       (320 * 320)
 
-#define ELANSPI_SWIPE_FRAMES_DISCARD 1
-#define ELANSPI_MIN_FRAMES_SWIPE (7 + ELANSPI_SWIPE_FRAMES_DISCARD)
-#define ELANSPI_MAX_FRAMES_SWIPE (20 + ELANSPI_SWIPE_FRAMES_DISCARD)
+/* --- Common Touch Detection & Timing Parameters --- */
+#define ELANSPI_MIN_EMPTY_INVALID_PERCENT    35
+#define ELANSPI_MAX_REAL_INVALID_PERCENT     30
 
-#define ELANSPI_MAX_FRAME_HEIGHT 43
-#define ELANSPI_MIN_FRAME_TO_FRAME_DIFF (250 * 250)
+#define ELANSPI_MAX_EMPTY_STDDEV             (220 * 220)
 
-#define ELANSPI_HV_SENSOR_FRAME_DELAY 6
+#define ELANSPI_MIN_FRAMES_DEBOUNCE          1
+#define ELANSPI_HV_SENSOR_FRAME_DELAY        6
+#define ELANSPI_MAX_FRAME_HEIGHT             43
 
 #define ELANSPI_OTP_TIMEOUT_USEC (12 * 1000)
 
