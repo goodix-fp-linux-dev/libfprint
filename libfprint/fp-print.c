@@ -681,7 +681,8 @@ fp_print_serialize (FpPrint *print,
   g_variant_builder_open (&builder, G_VARIANT_TYPE_VARDICT);
   g_variant_builder_close (&builder);
 
-  GPtrArray * to_free = g_ptr_array_new ();
+  /* Serialized SIGFM buffers, malloc'ed by sigfm_serialize_binary() */
+  g_autoptr(GPtrArray) to_free = g_ptr_array_new_with_free_func (g_free);
 
   /* Insert NBIS print data for type NBIS, otherwise the GVariant directly */
   if (print->type == FPI_PRINT_NBIS)
@@ -765,7 +766,6 @@ fp_print_serialize (FpPrint *print,
 
   g_variant_get_data (result);
   g_variant_store (result, (*data) + 3);
-  g_clear_object (&to_free);
 
   return TRUE;
 }
