@@ -36,6 +36,7 @@
 #include <string>
 
 #include <opencv2/opencv.hpp>
+#include <tuple>
 #include <vector>
 
 namespace bin {
@@ -75,8 +76,10 @@ struct match {
     }
     bool operator<(const match& right) const
     {
-        return (this->p1.y < right.p1.y) ||
-               ((this->p1.y < right.p1.y) && this->p1.x < right.p1.x);
+        // Compare every coordinate: comparing only p1.y made the std::set
+        // keep a single match per row of the verified image
+        return std::tie(this->p1.x, this->p1.y, this->p2.x, this->p2.y) <
+               std::tie(right.p1.x, right.p1.y, right.p2.x, right.p2.y);
     }
 };
 struct angle {
