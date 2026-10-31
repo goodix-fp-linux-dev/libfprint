@@ -25,6 +25,8 @@
 #include "fpi-print.h"
 #include "sigfm/sigfm.hpp"
 
+#define SIGFM_ENROLL_DUPLICATE_THRESHOLD 70
+
 /**
  * SECTION: fpi-image-device
  * @title: Internal FpImageDevice
@@ -471,20 +473,54 @@ fpi_image_device_report_finger_status (FpImageDevice *self,
     }
 }
 
-/**
- * fpi_image_device_image_captured:
- * @self: a #FpImageDevice imaging fingerprint device
- * @image: whether the finger is present on the sensor
- *
- * Reports an image capture. Only use this function if the image was
- * captured successfully. If there was an issue where the user should
- * retry, use fpi_image_device_retry_scan() to report the retry condition.
- *
- * In the event of a fatal error for the operation use
- * fpi_image_device_session_error(). This will abort the entire operation
- * including e.g. an enroll operation which captures multiple images during
- * one session.
+/* Reject only a strong SIGFM match against an accepted enrollment stage. The
+ * threshold matches the single-stage score sufficient for high-confidence
+ * verification, so ordinary partial overlap remains acceptable.
  */
+static gboolean
+sigfm_enroll_stage_is_duplicate (SigfmImgInfo *info,
+                                 GPtrArray *enroll_features,
+                                 guint *matched_stage,
+                                 gint *matched_score)
+{
+  for (guint i = 0; i < enroll_features->len; i++)
+    {
+      GBytes *stage = g_ptr_array_index (enroll_features, i);
+      gsize stage_len = 0;
+      const guint8 *stage_data = g_bytes_get_data (stage, &stage_len);
+      SigfmImgInfo *previous = sigfm_deserialize_binary (
+        stage_data, stage_len <= G_MAXINT ? (gint) stage_len : 0);
+
+      if (!previous)
+        {
+          g_warning ("SIGFM enroll: could not decode stored stage %u for duplicate check",
+                     i + 1);
+          continue;
+        }
+
+      gint score = sigfm_match_score (info, previous);
+      sigfm_free_info (previous);
+
+      if (score < 0)
+        {
+          g_warning ("SIGFM enroll: comparison with stage %u failed",
+                     i + 1);
+          continue;
+        }
+
+      g_message ("SIGFM enroll: candidate similarity to stage %u: score=%d",
+                 i + 1, score);
+      if (score >= SIGFM_ENROLL_DUPLICATE_THRESHOLD)
+        {
+          *matched_stage = i + 1;
+          *matched_score = score;
+          return TRUE;
+        }
+    }
+
+  return FALSE;
+}
+
 static void
 fpi_image_device_sigfm_process (FpImageDevice *self, FpImage *image)
 {
@@ -526,6 +562,22 @@ fpi_image_device_sigfm_process (FpImageDevice *self, FpImage *image)
 
       if (!priv->enroll_features)
         priv->enroll_features = g_ptr_array_new_with_free_func ((GDestroyNotify) g_bytes_unref);
+
+      if (!error && info && priv->enroll_features->len > 0)
+        {
+          guint matched_stage = 0;
+          gint matched_score = 0;
+
+          if (sigfm_enroll_stage_is_duplicate (info, priv->enroll_features,
+                                               &matched_stage, &matched_score))
+            {
+              g_warning ("SIGFM enroll: rejecting near-duplicate press (stage %u, score=%d); requesting a new placement",
+                         matched_stage, matched_score);
+              error = fpi_device_retry_new_msg (
+                FP_DEVICE_RETRY_GENERAL,
+                "This press is too similar to an earlier one. Move your finger to cover a different area.");
+            }
+        }
 
       if (!error && info)
         {
@@ -713,6 +765,20 @@ fpi_image_device_sigfm_process (FpImageDevice *self, FpImage *image)
     }
 }
 
+/**
+ * fpi_image_device_image_captured:
+ * @self: a #FpImageDevice imaging fingerprint device
+ * @image: whether the finger is present on the sensor
+ *
+ * Reports an image capture. Only use this function if the image was
+ * captured successfully. If there was an issue where the user should
+ * retry, use fpi_image_device_retry_scan() to report the retry condition.
+ *
+ * In the event of a fatal error for the operation use
+ * fpi_image_device_session_error(). This will abort the entire operation
+ * including e.g. an enroll operation which captures multiple images during
+ * one session.
+ */
 void
 fpi_image_device_image_captured (FpImageDevice *self, FpImage *image)
 {
