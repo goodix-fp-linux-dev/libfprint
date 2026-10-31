@@ -30,6 +30,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/socket.h>
 
 #include "drivers_api.h"
@@ -57,7 +58,8 @@ tls_server_psk_server_callback (SSL           *ssl,
 {
   const int len = 32;
 
-  fp_dbg ("PSK WANTED %d, identity=%s, cipher=%s", max_psk_len,
+  fp_warn ("TLS diagnostic: PSK callback max=%u identity=%s cipher=%s key_bytes=32",
+          max_psk_len,
           identity ? identity : "(null)",
           SSL_get_cipher_name (ssl) ? SSL_get_cipher_name (ssl) : "(unknown)");
   if (len > max_psk_len)
@@ -102,7 +104,21 @@ tls_server_config_ctx (SSL_CTX *ctx)
 int
 goodix_tls_client_write (GoodixTlsServer *self, guint8 *data, guint16 length)
 {
-  return write (self->client_fd, data, length * sizeof (guint8));
+  size_t offset = 0;
+
+  while (offset < length)
+    {
+      ssize_t written = write (self->client_fd, data + offset, length - offset);
+
+      if (written < 0 && errno == EINTR)
+        continue;
+      if (written <= 0)
+        return written < 0 ? -errno : -EPIPE;
+
+      offset += written;
+    }
+
+  return offset;
 }
 static int
 read_exact (int fd, guint8 *buf, size_t count, int timeout_ms)
@@ -171,7 +187,12 @@ goodix_tls_client_read (GoodixTlsServer *self, guint8 *data, guint16 length)
         total += rec_len;
     }
 
-  fp_dbg ("goodix_tls_client_read: returned total %d bytes (record 0 type 0x%02x)", total, data[0]);
+  fp_warn ("TLS diagnostic: OpenSSL response bytes=%d first=%02x %02x %02x %02x %02x",
+           total, total > 0 ? data[0] : 0,
+           total > 1 ? data[1] : 0,
+           total > 2 ? data[2] : 0,
+           total > 3 ? data[3] : 0,
+           total > 4 ? data[4] : 0);
   return total;
 }
 
@@ -195,25 +216,43 @@ tls_config_ssl (SSL *ssl)
   SSL_set_cipher_list (ssl, "PSK-AES128-CBC-SHA256:ALL:@SECLEVEL=0");
 }
 
+static int
+tls_log_error_stack (const char *message, size_t length, void *user_data)
+{
+  g_autofree char *line = g_strndup (message, length);
+
+  fp_warn ("TLS OpenSSL error stack: %s", line);
+  return 1;
+}
+
 static void *
 goodix_tls_init_serve (void *me)
 {
   GoodixTlsServer *self = me;
 
-  fp_dbg ("TLS server waiting to accept...");
+  ERR_clear_error ();
+  fp_warn ("TLS diagnostic: SSL_accept starting, state=%s",
+           SSL_state_string_long (self->ssl_layer));
   int retr = SSL_accept (self->ssl_layer);
 
-  fp_dbg ("TLS server accept done");
   if (retr <= 0)
     {
       int ssl_err = SSL_get_error (self->ssl_layer, retr);
-      unsigned long e = ERR_get_error ();
-      char err_buf[256] = {0};
-      ERR_error_string_n (e, err_buf, sizeof (err_buf));
-      fp_err ("server ready failed (retr=%d, ssl_err=%d): %s", retr, ssl_err, err_buf);
+      const SSL_CIPHER *cipher = SSL_get_current_cipher (self->ssl_layer);
+
+      fp_err ("TLS diagnostic: SSL_accept failed ret=%d ssl_err=%d state=%s cipher=%s",
+              retr, ssl_err, SSL_state_string_long (self->ssl_layer),
+              cipher ? SSL_CIPHER_get_name (cipher) : "(none)");
+      ERR_print_errors_cb (tls_log_error_stack, NULL);
     }
   else
-    fp_dbg ("TLS connection ready");
+    {
+      const SSL_CIPHER *cipher = SSL_get_current_cipher (self->ssl_layer);
+
+      fp_warn ("TLS diagnostic: SSL_accept succeeded state=%s cipher=%s",
+               SSL_state_string_long (self->ssl_layer),
+               cipher ? SSL_CIPHER_get_name (cipher) : "(none)");
+    }
   return NULL;
 }
 

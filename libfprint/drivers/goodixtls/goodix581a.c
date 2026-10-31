@@ -29,6 +29,8 @@ struct _FpiDeviceGoodixTls581a
   FpiDeviceGoodixTls5xx parent;
 
   GoodixTls5xxPix *calibration_img;
+  guint32 *calibration_sum;
+  guint calibration_frame_count;
   FpiSsm *scan_ssm;
 };
 
@@ -40,6 +42,8 @@ G_DEFINE_TYPE (FpiDeviceGoodixTls581a, fpi_device_goodixtls581a,
 
 enum activate_states {
   ACTIVATE_READ_AND_NOP,
+  ACTIVATE_READ_FIRMWARE,
+  ACTIVATE_CHECK_PSK,
   ACTIVATE_RESET,
   ACTIVATE_READ_REG,
   ACTIVATE_READ_OTP,
@@ -52,6 +56,70 @@ enum activate_states {
   ACTIVATE_CMD_36,
   ACTIVATE_NUM_STATES,
 };
+
+/* GM168 firmware exposes SHA256(PSK) under preset-PSK tag 0xbb020001.
+ * Compare the hash for the configured all-zero TLS key without logging the
+ * value returned by the sensor. 0xbb020003 is not this hash field; probing
+ * it returned BUSY on GM168SEC firmware and provided no key diagnostic.
+ */
+static const guint8 goodix_581a_tls_psk_hash[32] = {
+  0x66, 0x68, 0x7a, 0xad, 0xf8, 0x62, 0xbd, 0x77,
+  0x6c, 0x8f, 0xc1, 0x8b, 0x8e, 0x9f, 0x8e, 0x20,
+  0x08, 0x97, 0x14, 0x85, 0x6e, 0xe2, 0x33, 0xb3,
+  0x90, 0x2a, 0x59, 0x1d, 0x0d, 0x5f, 0x29, 0x25,
+};
+
+static void
+on_581a_firmware_version (FpDevice *dev, gchar *firmware,
+                          gpointer user_data, GError *error)
+{
+  FpiSsm *ssm = user_data;
+
+  if (error)
+    {
+      fp_warn ("581a firmware version query failed: %s", error->message);
+      g_clear_error (&error);
+      fpi_ssm_next_state (ssm);
+      return;
+    }
+
+  fp_warn ("581a firmware version: %s", firmware ? firmware : "(empty)");
+  fpi_ssm_next_state (ssm);
+}
+
+static void
+on_581a_psk_read (FpDevice *dev, gboolean success, guint32 flags,
+                  guint8 *psk, guint16 length, gpointer user_data,
+                  GError *error)
+{
+  FpiSsm *ssm = user_data;
+  const gboolean matches_tls_key =
+    success && flags == 0xbb020001 &&
+    length == sizeof (goodix_581a_tls_psk_hash) && psk &&
+    memcmp (psk, goodix_581a_tls_psk_hash,
+            sizeof (goodix_581a_tls_psk_hash)) == 0;
+
+  if (error)
+    {
+      fp_err ("581a PSK diagnostic read failed: %s", error->message);
+      fpi_ssm_mark_failed (ssm, error);
+      return;
+    }
+
+  fp_warn ("581a PSK diagnostic: readable=%d flags=0x%08x length=%u matches_tls_key=%d",
+           success, flags, length, matches_tls_key);
+
+  if (!success)
+    {
+      /* Some firmware rejects PSK reads in application mode. This is only a
+       * diagnostic probe, so do not prevent the real TLS handshake from
+       * determining whether the configured key works.
+       */
+      fp_warn ("581a PSK could not be read; continuing to TLS handshake");
+    }
+
+  fpi_ssm_next_state (ssm);
+}
 
 enum scan_581a_states {
   SCAN_581A_CALIBRATE,
@@ -115,6 +183,16 @@ activate_run_state (FpiSsm *ssm, FpDevice *dev)
     case ACTIVATE_READ_AND_NOP:
       goodix_start_read_loop (dev);
       goodix_send_nop (dev, goodixtls5xx_check_none, ssm);
+      break;
+
+    case ACTIVATE_READ_FIRMWARE:
+      goodix_send_query_firmware_version (dev, on_581a_firmware_version, ssm);
+      break;
+
+    case ACTIVATE_CHECK_PSK:
+      goodix_send_gm168_preset_psk_read (
+        dev, 0xbb020001, sizeof (goodix_581a_tls_psk_hash),
+        on_581a_psk_read, ssm);
       break;
 
     case ACTIVATE_RESET:
@@ -211,6 +289,8 @@ on_581a_calib_read (FpDevice *dev, guint8 *data, guint16 length,
 
   if (error)
     {
+      g_clear_pointer (&self->calibration_sum, g_free);
+      self->calibration_frame_count = 0;
       fp_err ("581a: Failed to capture baseline image: %s", error->message);
       fpi_ssm_mark_failed (ssm, error);
       return;
@@ -218,6 +298,8 @@ on_581a_calib_read (FpDevice *dev, guint8 *data, guint16 length,
 
   if (!data || length != GOODIX_581A_RAW_FRAME_SIZE)
     {
+      g_clear_pointer (&self->calibration_sum, g_free);
+      self->calibration_frame_count = 0;
       fpi_ssm_mark_failed (ssm,
                            g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
                                         "581a baseline frame has invalid length %u (expected %u)",
@@ -225,14 +307,33 @@ on_581a_calib_read (FpDevice *dev, guint8 *data, guint16 length,
       return;
     }
 
-  g_clear_pointer (&self->calibration_img, g_free);
-  self->calibration_img = g_malloc0 (GOODIX_581A_FRAME_SIZE * sizeof (GoodixTls5xxPix));
-  /* Save the untouched-pad frame as the reference for subsequent Mode 5
-   * captures. The image callback subtracts this baseline before filtering.
-   */
-  goodix_581a_decode_frame (self->calibration_img, length, data, 0, 4);
+  GoodixTls5xxPix frame[GOODIX_581A_FRAME_SIZE];
+  goodix_581a_decode_frame (frame, length, data, 0, 4);
 
-  fp_dbg ("581a: Ambient baseline acquired successfully!");
+  if (!self->calibration_sum)
+    self->calibration_sum = g_new0 (guint32, GOODIX_581A_FRAME_SIZE);
+  goodix_581a_accumulate_frame (self->calibration_sum, frame);
+  self->calibration_frame_count++;
+
+  if (self->calibration_frame_count < GOODIX_581A_AVERAGE_FRAMES)
+    {
+      fp_dbg ("581a: Ambient baseline frame %u/%u",
+              self->calibration_frame_count, GOODIX_581A_AVERAGE_FRAMES);
+      goodix_tls_read_image (dev, goodix_581a_get_image_mode1,
+                             sizeof (goodix_581a_get_image_mode1),
+                             on_581a_calib_read, ssm);
+      return;
+    }
+
+  g_clear_pointer (&self->calibration_img, g_free);
+  self->calibration_img = g_new (GoodixTls5xxPix, GOODIX_581A_FRAME_SIZE);
+  goodix_581a_finish_average (self->calibration_img, self->calibration_sum,
+                              GOODIX_581A_AVERAGE_FRAMES);
+  g_clear_pointer (&self->calibration_sum, g_free);
+  self->calibration_frame_count = 0;
+
+  fp_dbg ("581a: Ambient baseline averaged from %u frames",
+          GOODIX_581A_AVERAGE_FRAMES);
   fpi_ssm_next_state (ssm);
 }
 
@@ -537,6 +638,8 @@ dev_581a_deactivate (FpImageDevice *img_dev)
   goodix_reset_state (dev);
   goodix_shutdown_tls (dev, &error);
   g_clear_pointer (&self->calibration_img, g_free);
+  g_clear_pointer (&self->calibration_sum, g_free);
+  self->calibration_frame_count = 0;
 
   fpi_image_device_deactivate_complete (img_dev, error);
 }
@@ -545,6 +648,8 @@ static void
 fpi_device_goodixtls581a_init (FpiDeviceGoodixTls581a *self)
 {
   self->calibration_img = NULL;
+  self->calibration_sum = NULL;
+  self->calibration_frame_count = 0;
   self->scan_ssm = NULL;
 }
 
@@ -554,6 +659,7 @@ fpi_device_goodixtls581a_finalize (GObject *object)
   FpiDeviceGoodixTls581a *self = FPI_DEVICE_GOODIXTLS581A (object);
 
   g_clear_pointer (&self->calibration_img, g_free);
+  g_clear_pointer (&self->calibration_sum, g_free);
 
   G_OBJECT_CLASS (fpi_device_goodixtls581a_parent_class)->finalize (object);
 }
