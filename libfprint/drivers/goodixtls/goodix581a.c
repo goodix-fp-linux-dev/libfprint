@@ -31,6 +31,8 @@ struct _FpiDeviceGoodixTls581a
   GoodixTls5xxPix *calibration_img;
   guint32 *calibration_sum;
   guint calibration_frame_count;
+  guint32 *scan_sum;
+  guint scan_frame_count;
   FpiSsm *scan_ssm;
 };
 
@@ -387,6 +389,8 @@ on_581a_mode5_read (FpDevice *dev, guint8 *data, guint16 length,
 
   if (error)
     {
+      g_clear_pointer (&self->scan_sum, g_free);
+      self->scan_frame_count = 0;
       fp_err ("581a: Failed to capture Mode 5 scan: %s", error->message);
       fpi_ssm_mark_failed (ssm, error);
       return;
@@ -394,6 +398,8 @@ on_581a_mode5_read (FpDevice *dev, guint8 *data, guint16 length,
 
   if (!data || length != GOODIX_581A_RAW_FRAME_SIZE)
     {
+      g_clear_pointer (&self->scan_sum, g_free);
+      self->scan_frame_count = 0;
       fpi_ssm_mark_failed (ssm,
                            g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
                                         "581a scan frame has invalid length %u (expected %u)",
@@ -401,8 +407,29 @@ on_581a_mode5_read (FpDevice *dev, guint8 *data, guint16 length,
       return;
     }
 
+  GoodixTls5xxPix frame[GOODIX_581A_FRAME_SIZE];
+  goodix_581a_decode_frame (frame, length, data, 0, 4);
+
+  if (!self->scan_sum)
+    self->scan_sum = g_new0 (guint32, GOODIX_581A_FRAME_SIZE);
+  goodix_581a_accumulate_frame (self->scan_sum, frame);
+  self->scan_frame_count++;
+
+  if (self->scan_frame_count < GOODIX_581A_AVERAGE_FRAMES)
+    {
+      fp_dbg ("581a: Mode 5 finger frame %u/%u",
+              self->scan_frame_count, GOODIX_581A_AVERAGE_FRAMES);
+      goodix_tls_read_image (dev, goodix_581a_get_image_mode5,
+                             sizeof (goodix_581a_get_image_mode5),
+                             on_581a_mode5_read, ssm);
+      return;
+    }
+
   GoodixTls5xxPix raw_frame[GOODIX_581A_FRAME_SIZE];
-  goodix_581a_decode_frame (raw_frame, length, data, 0, 4);
+  goodix_581a_finish_average (raw_frame, self->scan_sum,
+                              GOODIX_581A_AVERAGE_FRAMES);
+  g_clear_pointer (&self->scan_sum, g_free);
+  self->scan_frame_count = 0;
 
   /* Fit a gain and offset from the untouched baseline to this scan. Keeping
    * the residual signed preserves both ridge polarities and accommodates
@@ -570,7 +597,8 @@ scan_581a_run_state (FpiSsm *ssm, FpDevice *dev)
       break;
 
     case SCAN_581A_CAPTURE:
-      fp_dbg ("581a: Capturing Mode 5 image...");
+      fp_dbg ("581a: Capturing %u Mode 5 finger frames...",
+              GOODIX_581A_AVERAGE_FRAMES);
       goodix_tls_read_image (dev, goodix_581a_get_image_mode5,
                              sizeof (goodix_581a_get_image_mode5),
                              on_581a_mode5_read, ssm);
@@ -640,6 +668,8 @@ dev_581a_deactivate (FpImageDevice *img_dev)
   g_clear_pointer (&self->calibration_img, g_free);
   g_clear_pointer (&self->calibration_sum, g_free);
   self->calibration_frame_count = 0;
+  g_clear_pointer (&self->scan_sum, g_free);
+  self->scan_frame_count = 0;
 
   fpi_image_device_deactivate_complete (img_dev, error);
 }
@@ -650,6 +680,8 @@ fpi_device_goodixtls581a_init (FpiDeviceGoodixTls581a *self)
   self->calibration_img = NULL;
   self->calibration_sum = NULL;
   self->calibration_frame_count = 0;
+  self->scan_sum = NULL;
+  self->scan_frame_count = 0;
   self->scan_ssm = NULL;
 }
 
@@ -660,6 +692,7 @@ fpi_device_goodixtls581a_finalize (GObject *object)
 
   g_clear_pointer (&self->calibration_img, g_free);
   g_clear_pointer (&self->calibration_sum, g_free);
+  g_clear_pointer (&self->scan_sum, g_free);
 
   G_OBJECT_CLASS (fpi_device_goodixtls581a_parent_class)->finalize (object);
 }
