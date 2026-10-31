@@ -351,7 +351,9 @@ goodix_receive_protocol (FpDevice *dev, guint8 *data, guint32 length)
 
   if (priv->cmd != cmd)
     {
-      fp_warn ("Invalid protocol command: 0x%02x", cmd);
+      g_autofree gchar *str = data_to_str (payload, MIN (payload_len, 32));
+      fp_warn ("Invalid protocol command: 0x%02x (expected 0x%02x), "
+               "payload (%u bytes): %s", cmd, priv->cmd, payload_len, str);
       return;
     }
 
@@ -403,6 +405,23 @@ goodix_receive_pack (FpDevice *dev, guint8 *data, guint32 length)
 
       // TLS message sending it to TLS server.
       // TODO
+      break;
+
+    case GOODIX_FLAGS_TLS_DATA:
+      // Used by e.g. the 5503 for image data: a 9 byte header precedes the
+      // TLS record (goodix-fp-dump strips it with [9:]).
+      fp_dbg ("Got TLS data msg");
+      if (payload_len <= GOODIX_TLS_DATA_HEADER_LEN)
+        {
+          goodix_receive_done (dev, NULL, 0,
+                               g_error_new (FP_DEVICE_ERROR,
+                                            FP_DEVICE_ERROR_PROTO,
+                                            "TLS data message too short: %u",
+                                            payload_len));
+          break;
+        }
+      goodix_receive_done (dev, payload + GOODIX_TLS_DATA_HEADER_LEN,
+                           payload_len - GOODIX_TLS_DATA_HEADER_LEN, NULL);
       break;
 
     default:
@@ -605,22 +624,22 @@ goodix_send_nop (FpDevice *dev, GoodixNoneCallback callback,
       cb_info->user_data = user_data;
 
       goodix_send_protocol (dev, GOODIX_CMD_NOP, (guint8 *) &payload,
-                            sizeof (payload), NULL, FALSE, GOODIX_TIMEOUT, FALSE,
+                            sizeof (payload), NULL, FALSE, 0, FALSE,
                             goodix_receive_none, cb_info);
       goodix_receive_done (dev, NULL, 0, NULL);
       return;
     }
 
   goodix_send_protocol (dev, GOODIX_CMD_NOP, (guint8 *) &payload, sizeof (payload),
-                        NULL, FALSE, GOODIX_TIMEOUT, FALSE, NULL, NULL);
+                        NULL, FALSE, 0, FALSE, NULL, NULL);
   goodix_receive_done (dev, NULL, 0, NULL);
 }
 
 void
-goodix_send_mcu_get_image (FpDevice *dev, GoodixImageCallback callback,
-                           gpointer user_data)
+goodix_send_mcu_get_image_ex (FpDevice *dev, const guint8 *payload,
+                              guint16 length, GoodixImageCallback callback,
+                              gpointer user_data)
 {
-  GoodixDefault payload = {.unused_flags = 0x01};
   GoodixCallbackInfo *cb_info;
 
   if (callback)
@@ -630,15 +649,45 @@ goodix_send_mcu_get_image (FpDevice *dev, GoodixImageCallback callback,
       cb_info->callback = G_CALLBACK (callback);
       cb_info->user_data = user_data;
 
-      goodix_send_protocol (dev, GOODIX_CMD_MCU_GET_IMAGE, (guint8 *) &payload,
-                            sizeof (payload), NULL, TRUE, GOODIX_TIMEOUT, TRUE,
+      goodix_send_protocol (dev, GOODIX_CMD_MCU_GET_IMAGE, payload, length,
+                            NULL, TRUE, GOODIX_TIMEOUT, TRUE,
                             goodix_receive_default, cb_info);
       return;
     }
 
-  goodix_send_protocol (dev, GOODIX_CMD_MCU_GET_IMAGE, (guint8 *) &payload,
-                        sizeof (payload), NULL, TRUE, GOODIX_TIMEOUT, TRUE,
-                        NULL, NULL);
+  goodix_send_protocol (dev, GOODIX_CMD_MCU_GET_IMAGE, payload, length, NULL,
+                        TRUE, GOODIX_TIMEOUT, TRUE, NULL, NULL);
+}
+
+void
+goodix_send_mcu_get_image (FpDevice *dev, GoodixImageCallback callback,
+                           gpointer user_data)
+{
+  GoodixDefault payload = {.unused_flags = 0x01};
+
+  goodix_send_mcu_get_image_ex (dev, (guint8 *) &payload, sizeof (payload),
+                                callback, user_data);
+}
+
+void
+goodix_send_raw_cmd (FpDevice *dev, guint8 cmd, const guint8 *payload,
+                     guint16 length, gboolean reply,
+                     GoodixDefaultCallback callback, gpointer user_data)
+{
+  GoodixCallbackInfo *cb_info = NULL;
+  GoodixCmdCallback cb = NULL;
+
+  if (callback)
+    {
+      cb_info = malloc (sizeof (GoodixCallbackInfo));
+
+      cb_info->callback = G_CALLBACK (callback);
+      cb_info->user_data = user_data;
+      cb = goodix_receive_default;
+    }
+
+  goodix_send_protocol (dev, cmd, payload, length, NULL, TRUE, GOODIX_TIMEOUT,
+                        reply, cb, cb_info);
 }
 
 void
@@ -1285,15 +1334,45 @@ on_tls_successfully_established (FpDevice *dev, gpointer user_data,
   FpiDeviceGoodixTlsPrivate * priv =
     fpi_device_goodixtls_get_instance_private (self);
   ((GoodixNoneCallback) priv->tls_ready_callback->callback)(
-    dev, priv->tls_ready_callback->user_data, NULL);
+    dev, priv->tls_ready_callback->user_data, error);
   g_clear_pointer (&priv->tls_ready_callback, g_free);
 }
 static void
+on_tls_settle_timeout (FpDevice *dev, gpointer user_data)
+{
+  on_tls_successfully_established (dev, NULL, NULL);
+}
+
+// The sensor needs a moment after the final handshake message before the next
+// command, otherwise it intermittently answers the first image request with
+// REQUEST_TLS_CONNECTION (goodix-fp-dump sleeps 10 ms here).
+#define GOODIX_TLS_SETTLE_MS 50
+
+static void
 tls_handshake_done (FpiSsm *ssm, FpDevice *dev, GError *error)
 {
+  FpiDeviceGoodixTlsClass *cls = FPI_DEVICE_GOODIXTLS_GET_CLASS (dev);
+
+  if (cls->skip_tls_established)
+    {
+      if (error)
+        {
+          fp_err ("failed to do tls handshake: %s (code: %d)", error->message,
+                  error->code);
+          on_tls_successfully_established (dev, NULL, error);
+          return;
+        }
+      fpi_device_add_timeout (dev, GOODIX_TLS_SETTLE_MS, on_tls_settle_timeout,
+                              NULL, NULL);
+      return;
+    }
+
   if (error)
-    fp_dbg ("failed to do tls handshake: %s (code: %d)", error->message,
-            error->code);
+    {
+      fp_dbg ("failed to do tls handshake: %s (code: %d)", error->message,
+              error->code);
+      g_clear_error (&error);
+    }
   goodix_send_tls_successfully_established (
     dev, on_tls_successfully_established, NULL);
 }
@@ -1477,8 +1556,9 @@ goodix_tls_ready_image_handler (FpDevice *dev, guint8 *data,
 }
 
 void
-goodix_tls_read_image (FpDevice *dev, GoodixImageCallback callback,
-                       gpointer user_data)
+goodix_tls_read_image_ex (FpDevice *dev, const guint8 *payload,
+                          guint16 length, GoodixImageCallback callback,
+                          gpointer user_data)
 {
   g_assert (callback);
   GoodixCallbackInfo *cb_info = malloc (sizeof (GoodixCallbackInfo));
@@ -1486,7 +1566,18 @@ goodix_tls_read_image (FpDevice *dev, GoodixImageCallback callback,
   cb_info->callback = G_CALLBACK (callback);
   cb_info->user_data = user_data;
 
-  goodix_send_mcu_get_image (dev, goodix_tls_ready_image_handler, cb_info);
+  goodix_send_mcu_get_image_ex (dev, payload, length,
+                                goodix_tls_ready_image_handler, cb_info);
+}
+
+void
+goodix_tls_read_image (FpDevice *dev, GoodixImageCallback callback,
+                       gpointer user_data)
+{
+  GoodixDefault payload = {.unused_flags = 0x01};
+
+  goodix_tls_read_image_ex (dev, (guint8 *) &payload, sizeof (payload),
+                            callback, user_data);
 }
 
 // ---- TLS SECTION END ----

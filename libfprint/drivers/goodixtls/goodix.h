@@ -37,6 +37,10 @@ struct _FpiDeviceGoodixTlsClass
   gint               interface;
   guint8             ep_in;
   guint8             ep_out;
+
+  /// Newer sensors (5503, 55x4, 53xd, 52xd) must not receive
+  /// TLS_SUCCESSFULLY_ESTABLISHED after the handshake.
+  gboolean           skip_tls_established;
 };
 
 typedef struct __attribute__((__packed__)) _GoodixCallbackInfo
@@ -273,6 +277,30 @@ void goodix_send_nop (FpDevice          *dev,
 void goodix_send_mcu_get_image (FpDevice           *dev,
                                 GoodixImageCallback callback,
                                 gpointer            user_data);
+
+/**
+ * @brief Like goodix_send_mcu_get_image() but with a device specific payload
+ * (e.g. the 5503 needs `01 00 8b 00 84 00 8c 00 88 00`)
+ */
+void goodix_send_mcu_get_image_ex (FpDevice           *dev,
+                                   const guint8       *payload,
+                                   guint16             length,
+                                   GoodixImageCallback callback,
+                                   gpointer            user_data);
+
+/**
+ * @brief Send an arbitrary protocol command and pass the raw reply to callback
+ *
+ * @param reply TRUE if the device sends a reply after the ACK, FALSE if the
+ * ACK alone completes the command (callback then gets data == NULL)
+ */
+void goodix_send_raw_cmd (FpDevice             *dev,
+                          guint8                cmd,
+                          const guint8         *payload,
+                          guint16               length,
+                          gboolean              reply,
+                          GoodixDefaultCallback callback,
+                          gpointer              user_data);
 
 /**
  * @brief Tell the device we want to wait for the user to present their finger
@@ -566,5 +594,15 @@ gboolean goodix_shutdown_tls (FpDevice *dev,
 void goodix_tls_read_image (FpDevice           *dev,
                             GoodixImageCallback callback,
                             gpointer            user_data);
+
+/**
+ * @brief Like goodix_tls_read_image() but with a device specific
+ * MCU_GET_IMAGE payload
+ */
+void goodix_tls_read_image_ex (FpDevice           *dev,
+                               const guint8       *payload,
+                               guint16             length,
+                               GoodixImageCallback callback,
+                               gpointer            user_data);
 
 // ---- TLS SECTION END ----
