@@ -300,6 +300,10 @@ fpi_device_goodixtls5503_class_init (FpiDeviceGoodixTls5503Class *class)
   dev_class->id_table = id_table;
   dev_class->nr_enroll_stages = 20;
   dev_class->scan_type = FP_SCAN_TYPE_PRESS;
+  // Capacitive sensor that does not heat up; the default thermal model locks
+  // the device ("Device disabled to prevent overheating") after a few long
+  // enroll sessions.
+  dev_class->temp_hot_seconds = -1;
 
   // The 64x80 (~3x4 mm) image has almost no minutiae, so NBIS cannot work;
   // use SIGFM (SIFT based). bz3_threshold is the SIGFM score threshold here.
