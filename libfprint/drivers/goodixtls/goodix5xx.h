@@ -60,8 +60,15 @@ typedef struct
   unsigned char * data;
 } GoodixTls5xxImage;
 
+typedef enum {
+  GOODIXTLS5XX_FDT_MODE,
+  GOODIXTLS5XX_FDT_DOWN,
+  GOODIXTLS5XX_FDT_UP,
+} GoodixTls5xxFdtKind;
+
 typedef FpImage *(*GoodixTls5xxProcessFrameFn)(guint8 * pix);
 typedef GoodixTls5xxMcuConfig (*GoodixTls5xxGetMcuFn)(void);
+typedef GoodixTls5xxMcuConfig (*GoodixTls5xxGetFdtFn)(GoodixTls5xxFdtKind kind);
 typedef void (*GoodixTls5xxResetStateFn)(FpDevice *);
 
 struct _FpiDeviceGoodixTls5xxClass
@@ -83,6 +90,36 @@ struct _FpiDeviceGoodixTls5xxClass
   const guint8 * psk;
 
   int            reset_number; ///< only needed if goodixtls5xx_check_reset() is used
+
+  /// optional: per-mode FDT bytes; if NULL get_mcu_cfg is used for every mode.
+  /// For FDT_DOWN/FDT_UP the leading 0x0c/0x0e byte is added by goodix.c,
+  /// for FDT_MODE the bytes are sent as-is.
+  GoodixTls5xxGetFdtFn get_fdt_cfg;
+
+  /// optional: MCU_GET_IMAGE payload (default 01 00)
+  const guint8 * get_image_payload;
+  guint16        get_image_payload_len;
+
+  /// bytes before / after the packed pixel data in a decrypted frame
+  /// (defaults 8 / 5 as on the 5110)
+  guint16 frame_header;
+  guint16 frame_trailer;
+
+  /// calibrate from the FDT_MODE state only (no FDT_UP + NAV_0 beforehand)
+  gboolean skip_nav_calibration;
+
+  /// optional: state machine run after the TLS handshake and before the
+  /// activation is reported complete (newer sensors upload their MCU config
+  /// only once TLS is up)
+  FpiSsmHandlerCallback post_tls_run;
+  int                   post_tls_num_states;
+
+  /// don't send QUERY_MCU_STATE (payload 0x55) at the start of every scan
+  gboolean skip_query_mcu;
+
+  /// re-arm FDT_UP when its reply values still show a finger (5503 firmware
+  /// reports spurious finger-up on light touches)
+  gboolean verify_fdt_up;
 };
 
 /**
@@ -218,6 +255,24 @@ void goodixtls5xx_scan_start (FpiDeviceGoodixTls5xx * dev);
 void goodixtls5xx_decode_frame (GoodixTls5xxPix * frame,
                                 guint32           frame_size,
                                 const guint8     *raw_frame);
+
+/**
+ * @brief Bounds checked goodixtls5xx_decode_frame() with configurable framing
+ *
+ * @param frame output, room for max_pixels pixels
+ * @param max_pixels
+ * @param frame_size size of raw_frame in bytes
+ * @param raw_frame
+ * @param header bytes to skip at the start
+ * @param trailer bytes to ignore at the end
+ * @return number of decoded pixels
+ */
+guint32 goodixtls5xx_decode_frame_ex (GoodixTls5xxPix * frame,
+                                      guint32           max_pixels,
+                                      guint32           frame_size,
+                                      const guint8     *raw_frame,
+                                      guint16           header,
+                                      guint16           trailer);
 
 
 /**
