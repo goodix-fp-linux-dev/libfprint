@@ -8,6 +8,8 @@ This is an experimental libfprint driver implementation for Goodix drivers.
 
 Currently in the works:
 - 27c6x5110 (80x64 resolution)
+- 27c6x5503 (64x80 resolution, SIGFM matching; requires the sensor to be
+  re-keyed once with goodix-fp-dump, see `goodix5503.h`)
 
 *LibFPrint is part of the **[FPrint][Website]** project.*
 
