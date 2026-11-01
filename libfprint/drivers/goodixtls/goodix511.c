@@ -229,6 +229,7 @@ activate_complete (FpiSsm *ssm, FpDevice *dev, GError *error)
 // ---- SCAN SECTION START ----
 
 const guint8 fdt_switch_state_mode[] = {
+  0x0c,
   0x01,
   0x80,
   0xaf,
@@ -305,6 +306,8 @@ fpi_device_goodixtls511_class_init (FpiDeviceGoodixTls511Class * class)
   xx_cls->process_frame = crop_frame;
   xx_cls->scan_height = GOODIX511_HEIGHT;
   xx_cls->scan_width = GOODIX511_SCAN_WIDTH;
+  xx_cls->raw_header_len = 8;
+  xx_cls->raw_footer_len = 5;
   xx_cls->psk = goodix_511_psk_0;
   xx_cls->psk_flags = GOODIX_511_PSK_FLAGS;
   xx_cls->psk_len = sizeof (goodix_511_psk_0);

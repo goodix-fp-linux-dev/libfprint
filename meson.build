@@ -125,6 +125,7 @@ default_drivers = [
     'upekts',
     'goodixmoc',
     'goodixtls511',
+    'goodixtls581a',
     'nb1010',
     'fpcmoc',
 
@@ -160,6 +161,7 @@ driver_helper_mapping = {
     'uru4000' : [ 'nss' ],
     'elanspi' : [ 'udev' ],
     'goodixtls511' : [ 'goodixtls' ],
+    'goodixtls581a' : [ 'goodixtls', 'pixman' ],
     'virtual_image'          : [ 'virtual' ],
     'virtual_device'         : [ 'virtual' ],
     'virtual_device_storage' : [ 'virtual' ],
@@ -207,7 +209,7 @@ foreach i : driver_helpers
         endif
     endforeach
 
-    if i == 'aes3k'
+    if i == 'aes3k' or i == 'pixman'
         imaging_dep = dependency('pixman-1', required: false)
         if not imaging_dep.found()
             error('pixman is required for @0@ and possibly others'.format(driver))

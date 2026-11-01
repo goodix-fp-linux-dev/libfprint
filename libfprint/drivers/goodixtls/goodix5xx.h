@@ -74,6 +74,12 @@ struct _FpiDeviceGoodixTls5xxClass
 
   guint16                    scan_width; ///< width of the raw scanner image
   guint16                    scan_height; ///< height of the raw scanner image
+  guint16                    raw_header_len;
+  guint16                    raw_footer_len;
+  const guint8             * calib_img_payload;
+  guint16                    calib_img_payload_len;
+  const guint8             * get_img_payload;
+  guint16                    get_img_payload_len;
 
   const char               * firmware_version; ///< only needed if goodixtls5xx_check_firmware_version() is used
 
@@ -217,7 +223,9 @@ void goodixtls5xx_scan_start (FpiDeviceGoodixTls5xx * dev);
  */
 void goodixtls5xx_decode_frame (GoodixTls5xxPix * frame,
                                 guint32           frame_size,
-                                const guint8     *raw_frame);
+                                const guint8     *raw_frame,
+                                guint16           header_len,
+                                guint16           footer_len);
 
 
 /**

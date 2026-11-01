@@ -107,6 +107,7 @@ struct _FpImageDeviceClass
   gint          bz3_threshold;
   gint          img_width;
   gint          img_height;
+  gboolean      use_sigfm;
 
   void          (*img_open)     (FpImageDevice *dev);
   void          (*img_close)    (FpImageDevice *dev);

@@ -271,6 +271,8 @@ void goodix_send_nop (FpDevice          *dev,
  * @param user_data
  */
 void goodix_send_mcu_get_image (FpDevice           *dev,
+                                const guint8       *payload,
+                                guint16             payload_len,
                                 GoodixImageCallback callback,
                                 gpointer            user_data);
 
@@ -473,6 +475,11 @@ void goodix_send_preset_psk_read (FpDevice                   *dev,
                                   guint16                     length,
                                   GoodixPresetPskReadCallback callback,
                                   gpointer                    user_data);
+void goodix_send_gm168_preset_psk_read (FpDevice                   *dev,
+                                        guint32                     flags,
+                                        guint32                     length,
+                                        GoodixPresetPskReadCallback callback,
+                                        gpointer                    user_data);
 /**
  * @brief Request the OTP (One Time Password) from the device
  *
@@ -564,6 +571,8 @@ gboolean goodix_shutdown_tls (FpDevice *dev,
  * @param user_data
  */
 void goodix_tls_read_image (FpDevice           *dev,
+                            const guint8       *payload,
+                            guint16             payload_len,
                             GoodixImageCallback callback,
                             gpointer            user_data);
 

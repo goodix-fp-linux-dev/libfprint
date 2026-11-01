@@ -141,6 +141,8 @@ driver_sources = {
         [ 'drivers/goodixmoc/goodix.c', 'drivers/goodixmoc/goodix_proto.c' ],
     'goodixtls511' :
         [ 'drivers/goodixtls/goodix511.c' ],
+    'goodixtls581a' :
+        [ 'drivers/goodixtls/goodix581a.c' ],
     'fpcmoc' :
         [ 'drivers/fpcmoc/fpc.c' ],
 }
@@ -157,6 +159,8 @@ helper_sources = {
     'nss' :
         [ ],
     'udev' :
+        [ ],
+    'pixman' :
         [ ],
     'virtual' :
         [ 'drivers/virtual-device-listener.c' ],
@@ -250,20 +254,46 @@ libnbis = static_library('nbis',
     ]),
     install: false)
 
+# SIGFM: SIFT-based fingerprint matching
+opencv_core = cc.find_library('opencv_core', required: false)
+opencv_features2d = cc.find_library('opencv_features2d', required: false)
+if not opencv_features2d.found()
+    opencv_features2d = cc.find_library('opencv_features', required: false)
+endif
+opencv_flann = cc.find_library('opencv_flann', required: false)
+opencv_imgproc = cc.find_library('opencv_imgproc', required: false)
+cpp_lib = cc.find_library('stdc++', required: false)
+
+if opencv_core.found() and opencv_features2d.found() and opencv_flann.found() and opencv_imgproc.found()
+    opencv_inc = include_directories('/usr/include/opencv4')
+    sigfm_libs = [opencv_core, opencv_features2d, opencv_flann, opencv_imgproc, cpp_lib]
+    libsigfm = static_library('sigfm',
+        'sigfm/sigfm.cpp',
+        include_directories: [opencv_inc],
+        dependencies: sigfm_libs,
+        cpp_args: ['-std=c++17'],
+        install: false)
+    sigfm_link = [libsigfm]
+    sigfm_dep = sigfm_libs
+else
+    sigfm_link = []
+    sigfm_dep = []
+endif
+
 libfprint_private = static_library('fprint-private',
     sources: [
         fpi_enums,
         libfprint_private_sources,
     ],
-    dependencies: deps,
-    link_with: libnbis,
+    dependencies: deps + sigfm_dep,
+    link_with: [libnbis] + sigfm_link,
     install: false)
 
 libfprint_drivers = static_library('fprint-drivers',
     sources: drivers_sources,
     c_args: drivers_cflags,
-    dependencies: deps,
-    link_with: libfprint_private,
+    dependencies: deps + sigfm_dep,
+    link_with: [libfprint_private] + sigfm_link,
     install: false)
 
 mapfile = files('libfprint.ver')
@@ -278,8 +308,8 @@ libfprint = shared_library(versioned_libname.split('lib')[1],
     version: libversion,
     link_args : vflag,
     link_depends : mapfile,
-    link_with: [libfprint_drivers, libfprint_private],
-    dependencies: deps,
+    link_with: [libfprint_drivers, libfprint_private] + sigfm_link,
+    dependencies: deps + sigfm_dep,
     install: true)
 
 libfprint_dep = declare_dependency(link_with: libfprint,

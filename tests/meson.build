@@ -206,6 +206,19 @@ foreach test_name: unit_tests
     )
 endforeach
 
+if 'goodixtls581a' in drivers
+    test_goodix581a_layout = executable('test-goodix581a-frame-layout',
+        'test-goodix581a-frame-layout.c',
+        dependencies: libfprint_private_dep,
+        c_args: common_cflags,
+    )
+    test('goodix581a-frame-layout',
+        test_goodix581a_layout,
+        suite: ['unit-tests'],
+        env: envs,
+    )
+endif
+
 # Run udev rule generator with fatal warnings
 envs.set('UDEV_HWDB', udev_hwdb.full_path())
 envs.set('UDEV_HWDB_CHECK_CONTENTS', default_drivers_are_enabled ? '1' : '0')

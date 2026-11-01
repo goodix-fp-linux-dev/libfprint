@@ -37,6 +37,7 @@ typedef struct
   FpImage            *capture_image;
 
   gint                bz3_threshold;
+  GPtrArray          *enroll_features;
 } FpImageDevicePrivate;
 
 

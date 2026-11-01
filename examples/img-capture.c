@@ -96,6 +96,7 @@ dev_capture_cb (FpDevice     *dev,
     }
 
   save_image_to_pgm (image, capture_data->filename);
+  capture_data->ret_value = EXIT_SUCCESS;
 
   capture_quit (dev, capture_data);
 }

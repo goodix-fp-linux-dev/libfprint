@@ -37,6 +37,9 @@ void     fpi_print_set_type (FpPrint     *print,
                              FpiPrintType type);
 void     fpi_print_set_device_stored (FpPrint *print,
                                       gboolean device_stored);
+void     fpi_print_set_raw_data (FpPrint  *print,
+                                 GVariant *data);
+GVariant *fpi_print_get_raw_data (FpPrint *print);
 
 gboolean fpi_print_add_from_image (FpPrint *print,
                                    FpImage *image,

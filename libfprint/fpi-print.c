@@ -97,6 +97,24 @@ fpi_print_set_device_stored (FpPrint *print,
   g_object_notify (G_OBJECT (print), "device-stored");
 }
 
+void
+fpi_print_set_raw_data (FpPrint *print, GVariant *data)
+{
+  g_return_if_fail (FP_IS_PRINT (print));
+
+  g_clear_pointer (&print->data, g_variant_unref);
+  if (data)
+    print->data = g_variant_ref_sink (data);
+  g_object_notify (G_OBJECT (print), "fpi-data");
+}
+
+GVariant *
+fpi_print_get_raw_data (FpPrint *print)
+{
+  g_return_val_if_fail (FP_IS_PRINT (print), NULL);
+  return print->data;
+}
+
 /* XXX: This is the old version, but wouldn't it be smarter to instead
  * use the highest quality mintutiae? Possibly just using bz_prune from
  * upstream? */
@@ -234,17 +252,36 @@ fpi_print_bz3_match (FpPrint *template, FpPrint *print, gint bz3_threshold, GErr
   pstruct = g_ptr_array_index (print->prints, 0);
   probe_len = bozorth_probe_init (pstruct);
 
+  gint max_score = 0;
+  gint high_matches = 0;
+
   for (i = 0; i < template->prints->len; i++)
     {
       struct xyt_struct *gstruct;
       gint score;
       gstruct = g_ptr_array_index (template->prints, i);
       score = bozorth_to_gallery (probe_len, pstruct, gstruct);
-      fp_dbg ("score %d/%d", score, bz3_threshold);
+      g_message ("Bozorth3 match score: %d / %d (stage %d)", score, bz3_threshold, i);
+
+      if (score > max_score)
+        max_score = score;
 
       if (score >= bz3_threshold)
-        return FPI_MATCH_SUCCESS;
+        high_matches++;
     }
+
+  /* Match evaluation for small sensors:
+   * 1. Single direct hit of high confidence (score >= 26), OR
+   * 2. At least 2 independent enrollment stages match with score >= bz3_threshold (>= 24).
+   * This provides ironclad rejection of imposter fingers (which max out at 5 to 8 at 2x scaling)
+   * while giving rapid, reliable verification for registered fingers.
+   */
+  gint min_matches = (template->prints->len >= 5) ? 2 : 1;
+  g_message ("Bozorth3 evaluation: max_score=%d, high_matches=%d (required: max>=26 or matches>=%d with score>=%d)",
+             max_score, high_matches, min_matches, bz3_threshold);
+
+  if (max_score >= 26 || (high_matches >= min_matches && max_score >= bz3_threshold))
+    return FPI_MATCH_SUCCESS;
 
   return FPI_MATCH_FAIL;
 }

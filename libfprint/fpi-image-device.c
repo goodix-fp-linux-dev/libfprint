@@ -22,6 +22,10 @@
 
 #include "fp-image-device-private.h"
 #include "fp-image-device.h"
+#include "fpi-print.h"
+#include "sigfm/sigfm.hpp"
+
+#define SIGFM_ENROLL_DUPLICATE_THRESHOLD 70
 
 /**
  * SECTION: fpi-image-device
@@ -75,6 +79,9 @@ fpi_image_device_deactivate (FpImageDevice *self, gboolean cancelling)
     }
   if (!cancelling && priv->state != FPI_IMAGE_DEVICE_STATE_IDLE)
     g_warning ("Deactivating image device while it is not idle, this should not happen.");
+
+  if (priv->enroll_features)
+    g_ptr_array_set_size (priv->enroll_features, 0);
 
   fp_dbg ("Deactivating image device");
   fp_image_device_change_state (self, FPI_IMAGE_DEVICE_STATE_DEACTIVATING);
@@ -300,6 +307,9 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
         {
           fpi_print_add_print (enroll_print, print);
           priv->enroll_stage += 1;
+          g_message ("Minutiae in captured frame: %d (enroll stage %d)",
+                     fp_image_get_minutiae (image) ? fp_image_get_minutiae (image)->len : 0,
+                     priv->enroll_stage);
         }
 
       fpi_device_enroll_progress (device, priv->enroll_stage,
@@ -322,6 +332,8 @@ fpi_image_device_minutiae_detected (GObject *source_object, GAsyncResult *res, g
       FpiMatchResult result;
 
       fpi_device_get_verify_data (device, &template);
+      g_message ("Verify probe: extracted %d minutiae",
+                 fp_image_get_minutiae (image) ? fp_image_get_minutiae (image)->len : 0);
       if (print)
         result = fpi_print_bz3_match (template, print, priv->bz3_threshold, &error);
       else
@@ -454,10 +466,302 @@ fpi_image_device_report_finger_status (FpImageDevice *self,
        */
       fp_image_device_change_state (self, FPI_IMAGE_DEVICE_STATE_IDLE);
 
-      if (action != FPI_DEVICE_ACTION_ENROLL)
+      if (action != FPI_DEVICE_ACTION_ENROLL || priv->enroll_stage == fp_device_get_nr_enroll_stages (device))
         fpi_image_device_deactivate (self, FALSE);
       else
         fp_image_device_enroll_maybe_await_finger_on (self);
+    }
+}
+
+/* Reject only a strong SIGFM match against an accepted enrollment stage. The
+ * threshold matches the single-stage score sufficient for high-confidence
+ * verification, so ordinary partial overlap remains acceptable.
+ */
+static gboolean
+sigfm_enroll_stage_is_duplicate (SigfmImgInfo *info,
+                                 GPtrArray *enroll_features,
+                                 guint *matched_stage,
+                                 gint *matched_score)
+{
+  for (guint i = 0; i < enroll_features->len; i++)
+    {
+      GBytes *stage = g_ptr_array_index (enroll_features, i);
+      gsize stage_len = 0;
+      const guint8 *stage_data = g_bytes_get_data (stage, &stage_len);
+      SigfmImgInfo *previous = sigfm_deserialize_binary (
+        stage_data, stage_len <= G_MAXINT ? (gint) stage_len : 0);
+
+      if (!previous)
+        {
+          g_warning ("SIGFM enroll: could not decode stored stage %u for duplicate check",
+                     i + 1);
+          continue;
+        }
+
+      gint score = sigfm_match_score (info, previous);
+      sigfm_free_info (previous);
+
+      if (score < 0)
+        {
+          g_warning ("SIGFM enroll: comparison with stage %u failed",
+                     i + 1);
+          continue;
+        }
+
+      g_message ("SIGFM enroll: candidate similarity to stage %u: score=%d",
+                 i + 1, score);
+      if (score >= SIGFM_ENROLL_DUPLICATE_THRESHOLD)
+        {
+          *matched_stage = i + 1;
+          *matched_score = score;
+          return TRUE;
+        }
+    }
+
+  return FALSE;
+}
+
+static void
+fpi_image_device_sigfm_process (FpImageDevice *self, FpImage *image)
+{
+  FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
+  FpDevice *device = FP_DEVICE (self);
+  FpiDeviceAction action = fpi_device_get_current_action (device);
+  GError *error = NULL;
+  gsize img_len = 0;
+  const guchar *img_data = fp_image_get_data (image, &img_len);
+  gint width = fp_image_get_width (image);
+  gint height = fp_image_get_height (image);
+
+  priv->minutiae_scan_active = FALSE;
+
+  if (action == FPI_DEVICE_ACTION_CAPTURE)
+    {
+      priv->capture_image = g_object_ref (image);
+      fp_image_device_maybe_complete_action (self, NULL);
+      return;
+    }
+
+  SigfmImgInfo *info = sigfm_extract (img_data, width, height);
+  int kpts = sigfm_keypoints_count (info);
+  g_message ("SIGFM: extracted %d keypoints from %dx%d image", kpts, width, height);
+
+  if (kpts < 6)
+    {
+      g_warning ("SIGFM: too few keypoints (%d < 6), requesting retry", kpts);
+      if (info)
+        sigfm_free_info (info);
+      info = NULL;
+      error = fpi_device_retry_new_msg (FP_DEVICE_RETRY_CENTER_FINGER, "Please center finger on sensor");
+    }
+
+  if (action == FPI_DEVICE_ACTION_ENROLL)
+    {
+      FpPrint *enroll_print = NULL;
+      fpi_device_get_enroll_data (device, &enroll_print);
+
+      if (!priv->enroll_features)
+        priv->enroll_features = g_ptr_array_new_with_free_func ((GDestroyNotify) g_bytes_unref);
+
+      if (!error && info && priv->enroll_features->len > 0)
+        {
+          guint matched_stage = 0;
+          gint matched_score = 0;
+
+          if (sigfm_enroll_stage_is_duplicate (info, priv->enroll_features,
+                                               &matched_stage, &matched_score))
+            {
+              g_warning ("SIGFM enroll: rejecting near-duplicate press (stage %u, score=%d); requesting a new placement",
+                         matched_stage, matched_score);
+              error = fpi_device_retry_new_msg (
+                FP_DEVICE_RETRY_GENERAL,
+                "This press is too similar to an earlier one. Move your finger to cover a different area.");
+            }
+        }
+
+      if (!error && info)
+        {
+          int out_len = 0;
+          unsigned char *sdata = sigfm_serialize_binary (info, &out_len);
+          if (sdata && out_len > 0)
+            {
+              g_ptr_array_add (priv->enroll_features, g_bytes_new_take (sdata, (gsize) out_len));
+              priv->enroll_stage += 1;
+              g_message ("SIGFM enroll: completed stage %d of %d (kpts=%d, bytes=%d)",
+                         priv->enroll_stage, fp_device_get_nr_enroll_stages (device), kpts, out_len);
+            }
+          else
+            {
+              error = fpi_device_retry_new_msg (FP_DEVICE_RETRY_GENERAL, "Failed to serialize features");
+            }
+        }
+
+      if (info)
+        sigfm_free_info (info);
+
+      g_autoptr(FpPrint) stage_print = fp_print_new (device);
+      fpi_print_set_type (stage_print, FPI_PRINT_RAW);
+
+      fpi_device_enroll_progress (device, priv->enroll_stage,
+                                  error ? NULL : g_steal_pointer (&stage_print),
+                                  error);
+
+      if (priv->enroll_stage == fp_device_get_nr_enroll_stages (device))
+        {
+          GVariantBuilder builder;
+          g_variant_builder_init (&builder, G_VARIANT_TYPE ("aay"));
+          for (guint i = 0; i < priv->enroll_features->len; i++)
+            {
+              GBytes *b = g_ptr_array_index (priv->enroll_features, i);
+              g_variant_builder_add_value (&builder,
+                                           g_variant_new_from_bytes (G_VARIANT_TYPE ("ay"), b, TRUE));
+            }
+          GVariant *var = g_variant_builder_end (&builder);
+          fpi_print_set_raw_data (enroll_print, var);
+          fpi_print_set_type (enroll_print, FPI_PRINT_RAW);
+          g_ptr_array_set_size (priv->enroll_features, 0);
+
+          g_message ("SIGFM enroll: completed successfully with %u stages stored",
+                     fp_device_get_nr_enroll_stages (device));
+          fp_image_device_maybe_complete_action (self, NULL);
+          if (!priv->finger_present)
+            fpi_image_device_deactivate (self, FALSE);
+        }
+      else
+        {
+          fp_image_device_enroll_maybe_await_finger_on (self);
+        }
+    }
+  else if (action == FPI_DEVICE_ACTION_VERIFY)
+    {
+      FpPrint *template = NULL;
+      FpiMatchResult result = FPI_MATCH_FAIL;
+      fpi_device_get_verify_data (device, &template);
+
+      if (!error && info)
+        {
+          GVariant *template_var = fpi_print_get_raw_data (template);
+          if (!template_var)
+            {
+              g_warning ("SIGFM verify: template has no raw data!");
+              result = FPI_MATCH_ERROR;
+            }
+          else
+            {
+              int max_score = 0;
+              int matched_stages = 0;
+              GVariantIter iter;
+              GVariant *stage_bytes;
+
+              g_variant_iter_init (&iter, template_var);
+              while ((stage_bytes = g_variant_iter_next_value (&iter)) != NULL)
+                {
+                  gsize sz;
+                  const uint8_t *b = (const uint8_t *) g_variant_get_fixed_array (stage_bytes, &sz, 1);
+                  if (b && sz > 0)
+                    {
+                      SigfmImgInfo *gallery_info = sigfm_deserialize_binary (b, (int) sz);
+                      if (gallery_info)
+                        {
+                          int score = sigfm_match_score (info, gallery_info);
+                          if (score > max_score)
+                            max_score = score;
+                          if (score >= 40)
+                            matched_stages++;
+                          sigfm_free_info (gallery_info);
+                        }
+                    }
+                  g_variant_unref (stage_bytes);
+                }
+
+              if (max_score >= 70 || (max_score >= 45 && matched_stages >= 2))
+                result = FPI_MATCH_SUCCESS;
+              else
+                result = FPI_MATCH_FAIL;
+
+              g_message ("SIGFM verify: max_score = %d, matched_stages = %d -> %s",
+                         max_score, matched_stages, result == FPI_MATCH_SUCCESS ? "MATCH" : "NO_MATCH");
+            }
+        }
+      else
+        {
+          result = FPI_MATCH_ERROR;
+        }
+
+      if (info)
+        sigfm_free_info (info);
+
+      g_autoptr(FpPrint) probe_print = fp_print_new (device);
+      fpi_print_set_type (probe_print, FPI_PRINT_RAW);
+
+      if (!error || error->domain == FP_DEVICE_RETRY)
+        fpi_device_verify_report (device, result, g_steal_pointer (&probe_print), g_steal_pointer (&error));
+
+      fp_image_device_maybe_complete_action (self, g_steal_pointer (&error));
+      if (error)
+        fpi_image_device_deactivate (self, TRUE);
+    }
+  else if (action == FPI_DEVICE_ACTION_IDENTIFY)
+    {
+      GPtrArray *templates = NULL;
+      FpPrint *matched_template = NULL;
+      fpi_device_get_identify_data (device, &templates);
+
+      if (!error && info && templates)
+        {
+          for (guint t = 0; t < templates->len; t++)
+            {
+              FpPrint *tmpl = g_ptr_array_index (templates, t);
+              GVariant *template_var = fpi_print_get_raw_data (tmpl);
+              if (!template_var)
+                continue;
+
+              int max_score = 0;
+              int matched_stages = 0;
+              GVariantIter iter;
+              GVariant *stage_bytes;
+
+              g_variant_iter_init (&iter, template_var);
+              while ((stage_bytes = g_variant_iter_next_value (&iter)) != NULL)
+                {
+                  gsize sz;
+                  const uint8_t *b = (const uint8_t *) g_variant_get_fixed_array (stage_bytes, &sz, 1);
+                  if (b && sz > 0)
+                    {
+                      SigfmImgInfo *gallery_info = sigfm_deserialize_binary (b, (int) sz);
+                      if (gallery_info)
+                        {
+                          int score = sigfm_match_score (info, gallery_info);
+                          if (score > max_score)
+                            max_score = score;
+                          if (score >= 40)
+                            matched_stages++;
+                          sigfm_free_info (gallery_info);
+                        }
+                    }
+                  g_variant_unref (stage_bytes);
+                }
+
+              if (max_score >= 70 || (max_score >= 45 && matched_stages >= 2))
+                {
+                  matched_template = tmpl;
+                  break;
+                }
+            }
+        }
+
+      if (info)
+        sigfm_free_info (info);
+
+      g_autoptr(FpPrint) probe_print = fp_print_new (device);
+      fpi_print_set_type (probe_print, FPI_PRINT_RAW);
+
+      if (!error || error->domain == FP_DEVICE_RETRY)
+        fpi_device_identify_report (device, matched_template, g_steal_pointer (&probe_print), g_steal_pointer (&error));
+
+      fp_image_device_maybe_complete_action (self, g_steal_pointer (&error));
+      if (error)
+        fpi_image_device_deactivate (self, TRUE);
     }
 }
 
@@ -493,6 +797,13 @@ fpi_image_device_image_captured (FpImageDevice *self, FpImage *image)
   g_debug ("Image device captured an image");
 
   priv->minutiae_scan_active = TRUE;
+
+  if (FP_IMAGE_DEVICE_GET_CLASS (self)->use_sigfm)
+    {
+      fp_image_device_change_state (self, FPI_IMAGE_DEVICE_STATE_AWAIT_FINGER_OFF);
+      fpi_image_device_sigfm_process (self, image);
+      return;
+    }
 
   /* XXX: We also detect minutiae in capture mode, we solely do this
    *      to normalize the image which will happen as a by-product. */

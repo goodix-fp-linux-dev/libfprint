@@ -126,11 +126,22 @@ fp_image_device_start_capture_action (FpDevice *device)
 
       fpi_device_get_enroll_data (device, &enroll_print);
       g_object_get (enroll_print, "fpi-type", &print_type, NULL);
-      if (print_type != FPI_PRINT_NBIS)
-        fpi_print_set_type (enroll_print, FPI_PRINT_NBIS);
+      if (FP_IMAGE_DEVICE_GET_CLASS (self)->use_sigfm)
+        {
+          if (print_type != FPI_PRINT_RAW)
+            fpi_print_set_type (enroll_print, FPI_PRINT_RAW);
+        }
+      else
+        {
+          if (print_type != FPI_PRINT_NBIS)
+            fpi_print_set_type (enroll_print, FPI_PRINT_NBIS);
+        }
     }
 
   priv->enroll_stage = 0;
+  if (priv->enroll_features)
+    g_ptr_array_set_size (priv->enroll_features, 0);
+
   /* The internal state machine guarantees both of these. */
   g_assert (!priv->finger_present);
   g_assert (!priv->minutiae_scan_active);
@@ -150,6 +161,9 @@ fp_image_device_finalize (GObject *object)
   FpImageDevicePrivate *priv = fp_image_device_get_instance_private (self);
 
   g_assert (priv->active == FALSE);
+
+  if (priv->enroll_features)
+    g_ptr_array_unref (priv->enroll_features);
 
   G_OBJECT_CLASS (fp_image_device_parent_class)->finalize (object);
 }

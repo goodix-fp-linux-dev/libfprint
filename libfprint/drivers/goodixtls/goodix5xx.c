@@ -78,11 +78,12 @@ static void on_calibrate_scan(FpDevice* dev, guint8* data, guint16 len, gpointer
   if (!priv->calibration_img) {
     priv->calibration_img = calloc(cls->scan_height * cls->scan_width, sizeof(GoodixTls5xxPix));
   }
-  goodixtls5xx_decode_frame(priv->calibration_img, len, data);
+  goodixtls5xx_decode_frame(priv->calibration_img, len, data, cls->raw_header_len, cls->raw_footer_len);
 
   fpi_ssm_next_state(ssm);
 }
 static void calibrate_run(FpiSsm* ssm, FpDevice* dev) {
+  FpiDeviceGoodixTls5xxClass * cls = FPI_DEVICE_GOODIXTLS5XX_GET_CLASS (dev);
   switch (fpi_ssm_get_cur_state(ssm)) {
     case CALIBRATION_STAGE_FDT_UP:
       send_switch_mode(dev, ssm, goodix_send_mcu_switch_to_fdt_up);
@@ -91,7 +92,7 @@ static void calibrate_run(FpiSsm* ssm, FpDevice* dev) {
       goodix_send_nav_0(dev, goodixtls5xx_check_none_cmd, ssm);
       break;
     case CALIBRATION_STAGE_GET_IMG:
-      goodix_tls_read_image(dev, on_calibrate_scan, ssm);
+      goodix_tls_read_image(dev, cls->calib_img_payload, cls->calib_img_payload_len, on_calibrate_scan, ssm);
   }
 }
 
@@ -309,9 +310,8 @@ goodixtls5xx_squash_frame_linear (GoodixTls5xxPix *frame, guint8 *squashed, guin
     }
 }
 static void linear_subtract_inplace(GoodixTls5xxPix* src, GoodixTls5xxPix* by, guint16 len) {
-  const guint16 max = -1;
   for (guint16 n = 0; n != len; ++n) {
-    src[n] = MAX(0, max - ((max - src[n]) - (max - by[n])));
+    src[n] = (by[n] > src[n]) ? (by[n] - src[n]) : 0;
   }
 }
 
@@ -332,7 +332,7 @@ scan_on_read_img (FpDevice *dev, guint8 *data, guint16 len,
   FpiDeviceGoodixTls5xxClass *cls = FPI_DEVICE_GOODIXTLS5XX_GET_CLASS (dev);
 
   GoodixTls5xxPix * raw_frame = calloc (cls->scan_width * cls->scan_height, sizeof (GoodixTls5xxPix));
-  goodixtls5xx_decode_frame (raw_frame, len, data);
+  goodixtls5xx_decode_frame (raw_frame, len, data, cls->raw_header_len, cls->raw_footer_len);
   linear_subtract_inplace(raw_frame, priv->calibration_img, cls->scan_width * cls->scan_height);
   guint8 * squashed = calloc (cls->scan_height * cls->scan_width, 1);
   goodixtls5xx_squash_frame_linear (raw_frame, squashed, cls->scan_height * cls->scan_width);
@@ -360,7 +360,8 @@ query_mcu_state_cb (FpDevice * dev, guchar * mcu_state, guint16 len,
 static void
 scan_get_img (FpDevice * dev, FpiSsm * ssm)
 {
-  goodix_tls_read_image (dev, scan_on_read_img, ssm);
+  FpiDeviceGoodixTls5xxClass * cls = FPI_DEVICE_GOODIXTLS5XX_GET_CLASS (dev);
+  goodix_tls_read_image (dev, cls->get_img_payload, cls->get_img_payload_len, scan_on_read_img, ssm);
 }
 
 
@@ -422,11 +423,12 @@ goodixtls5xx_scan_start (FpiDeviceGoodixTls5xx * dev)
 }
 
 void
-goodixtls5xx_decode_frame (GoodixTls5xxPix * frame, guint32 frame_size, const guint8 *raw_frame)
+goodixtls5xx_decode_frame (GoodixTls5xxPix * frame, guint32 frame_size, const guint8 *raw_frame,
+                           guint16 header_len, guint16 footer_len)
 {
   GoodixTls5xxPix *pix = frame;
 
-  for (int i = 8; i != frame_size - 5; i += 6)
+  for (int i = header_len; i <= (int)frame_size - footer_len - 6; i += 6)
     {
       const guint8 *chunk = raw_frame + i;
       *pix++ = ((chunk[0] & 0xf) << 8) + chunk[1];
